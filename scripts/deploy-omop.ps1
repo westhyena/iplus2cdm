@@ -130,7 +130,8 @@ $commonArgs = @(
   "-S", $cfg.Server,
   "-d", $cfg.Database,
   "-b",
-  "-V", "16",
+  "-V", "15",
+  "-I",
   "-v",
   "cdmDatabaseSchema=$($cfg.CdmSchema)"
 )
