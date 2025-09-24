@@ -206,9 +206,29 @@ $null = New-Item -ItemType Directory -Force -Path $cfg.VocabExtractDir | Out-Nul
 $vocabDir = Find-VocabDir -extractDir $cfg.VocabExtractDir
 Write-Host "[OK] vocabulary 디렉터리: $vocabDir"
 
+ 
+
 # Create staging schema
 $createSchema = "IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = '$($cfg.StagingSchema)') EXEC('CREATE SCHEMA [$($cfg.StagingSchema)]');"
 & $cfg.SqlcmdBin @sqlcmdArgs -Q $createSchema | Out-Null
+
+# Pre-clear ALL staging tables regardless of file presence (per-table, TRY/CATCH)
+$preTruncateTables = @('CONCEPT','VOCABULARY','DOMAIN','CONCEPT_CLASS','RELATIONSHIP','CONCEPT_SYNONYM','CONCEPT_RELATIONSHIP','DRUG_STRENGTH','CONCEPT_ANCESTOR')
+foreach ($t in $preTruncateTables) {
+  $objName = "$($cfg.StagingSchema).$t"          # schema.table (unbracketed) for OBJECT_ID
+  $qualified = "[$($cfg.StagingSchema)].[$t]"     # bracketed for DDL/DML
+  $sql = @"
+IF OBJECT_ID('$objName','U') IS NOT NULL
+BEGIN TRY
+  TRUNCATE TABLE $qualified;
+END TRY
+BEGIN CATCH
+  DELETE FROM $qualified;
+END CATCH
+"@
+  & $cfg.SqlcmdBin @sqlcmdArgs -Q $sql | Out-Null
+}
+Write-Host "[OK] Staging 초기화 완료: $($cfg.StagingSchema)"
 
 function QuoteIdent([string]$name) { return "[" + ($name -replace "]","]]") + "]" }
 
@@ -222,23 +242,28 @@ function Ensure-Staging-Table([string]$table, [string]$filePath) {
   $colsQuoted = $cols | ForEach-Object { QuoteIdent $_ }
   $colsDef = ($colsQuoted | ForEach-Object { "$_ NVARCHAR(4000) NULL" }) -join ","
   $full = "[$($cfg.StagingSchema)]." + (QuoteIdent $table)
+  $objForObjectId = "$($cfg.StagingSchema).$table"  # OBJECT_ID용 언브래킷 식별자
 
   # CREATE TABLE IF NOT EXISTS
   $sqlCreate = @"
-IF OBJECT_ID('$full','U') IS NULL
+IF OBJECT_ID('$objForObjectId','U') IS NULL
 BEGIN
   CREATE TABLE $full ($colsDef);
 END
 "@
   & $cfg.SqlcmdBin @sqlcmdArgs -Q $sqlCreate | Out-Null
 
-  # Optional TRUNCATE in a separate statement
-  if ($cfg.StagingTruncateBeforeLoad) {
-    $sqlTrunc = @"
-IF OBJECT_ID('$full','U') IS NOT NULL TRUNCATE TABLE $full;
+  # Always clear staging table before load (TRUNCATE with DELETE fallback)
+  $sqlClear = @"
+IF OBJECT_ID('$objForObjectId','U') IS NOT NULL
+BEGIN TRY
+  TRUNCATE TABLE $full;
+END TRY
+BEGIN CATCH
+  DELETE FROM $full;
+END CATCH
 "@
-    & $cfg.SqlcmdBin @sqlcmdArgs -Q $sqlTrunc | Out-Null
-  }
+  & $cfg.SqlcmdBin @sqlcmdArgs -Q $sqlClear | Out-Null
 }
 
 function Build-BcpAuthArgs() {
