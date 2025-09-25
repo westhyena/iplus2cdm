@@ -9,7 +9,8 @@ param(
   [string]$ConfigPath,
   [switch]$UseEnv,
   [switch]$PromptPassword,
-  [string]$SqlcmdBin
+  [string]$SqlcmdBin,
+  [string[]]$SqlFiles
 )
 
 $ErrorActionPreference = 'Stop'
@@ -110,19 +111,25 @@ if ($cfg.User) {
 
 # Resolve SQL files
 $root = Get-RepoRoot
-$stgFile   = Join-Path $root 'etl-sql/stg/create_person_id_map.sql'
-$personSql = Join-Path $root 'etl-sql/person.sql'
-if (-not (Test-Path $stgFile))   { throw "SQL not found: $stgFile" }
-if (-not (Test-Path $personSql)) { throw "SQL not found: $personSql" }
 
-# Execute in order
-Write-Host "[EXEC] $stgFile"
-& $cfg.SqlcmdBin @sqlcmdArgs -i $stgFile
-if ($LASTEXITCODE -ne 0) { throw "실행 실패: $(Split-Path -Leaf $stgFile)" }
+# 기본 실행 목록 (상대경로, 리포지토리 루트 기준)
+$defaultSqlRelPaths = @(
+  'etl-sql/stg/create_person_id_map.sql',
+  'etl-sql/stg/create_vocabulary_map.sql',
+  'etl-sql/person.sql'
+)
 
-Write-Host "[EXEC] $personSql"
-& $cfg.SqlcmdBin @sqlcmdArgs -i $personSql
-if ($LASTEXITCODE -ne 0) { throw "실행 실패: $(Split-Path -Leaf $personSql)" }
+# 사용자 지정이 없으면 기본 목록 사용
+$candidatePaths = if ($SqlFiles -and $SqlFiles.Count -gt 0) { $SqlFiles } else { $defaultSqlRelPaths }
+
+# 순차 실행
+foreach ($pathLike in $candidatePaths) {
+  $path = if ([IO.Path]::IsPathRooted($pathLike)) { $pathLike } else { Join-Path $root $pathLike }
+  if (-not (Test-Path $path)) { throw "SQL not found: $path" }
+  Write-Host "[EXEC] $path"
+  & $cfg.SqlcmdBin @sqlcmdArgs -i $path
+  if ($LASTEXITCODE -ne 0) { throw "실행 실패: $(Split-Path -Leaf $path)" }
+}
 
 Write-Host "[OK] ETL SQL 실행 완료 (CDM=$($cfg.CdmSchema), STG=$($cfg.StagingSchema), SRC=$($cfg.SrcSchema))"
 
