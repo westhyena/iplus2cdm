@@ -302,4 +302,4 @@ foreach ($t in $tables) {
 }
 
 Write-Host "`n[OK] Staging 완료. 스키마: $($cfg.StagingSchema), DB: $($cfg.Database)"
-Write-Host "이제 변환 SQL로 [$($cfg.StagingSchema)] -> [$($cfg.CdmSchema)] 적재를 수행하세요."
+Write-Host "이제 별도 스크립트로 [$($cfg.StagingSchema)] -> [$($cfg.CdmSchema)] 이관을 수행하세요. (scripts/migrate-vocab.ps1)"
