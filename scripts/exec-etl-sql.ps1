@@ -10,7 +10,9 @@ param(
   [switch]$UseEnv,
   [switch]$PromptPassword,
   [string]$SqlcmdBin,
-  [string[]]$SqlFiles
+  [string[]]$SqlFiles,
+  [switch]$FullReload,
+  [switch]$ResetMaps
 )
 
 $ErrorActionPreference = 'Stop'
@@ -102,6 +104,34 @@ $sqlcmdArgs = @('-S', $cfg.Server, '-d', $cfg.Database, '-b', '-V', '16', '-I', 
   "StagingSchema=$($cfg.StagingSchema)",
   "SrcSchema=$($cfg.SrcSchema)"
 )
+# Auth args
+if ($cfg.User) {
+  if (-not $cfg.Password) { throw "Password is required when User is set (or use -PromptPassword)" }
+  $sqlcmdArgs += @('-U', $cfg.User, '-P', $cfg.Password)
+} else {
+  $sqlcmdArgs += @('-E')
+}
+
+# Full reload: execute reset.sql and optionally reset staging maps
+if ($FullReload) {
+  $root = Get-RepoRoot
+  $resetPath = Join-Path $root 'etl-sql/stg/reset.sql'
+  if (-not (Test-Path $resetPath)) { throw "reset.sql not found: $resetPath" }
+  Write-Host "[RESET] Executing $resetPath"
+  & $cfg.SqlcmdBin @sqlcmdArgs -i $resetPath
+  if ($LASTEXITCODE -ne 0) { throw "reset.sql execution failed" }
+
+  if ($ResetMaps) {
+    Write-Host "[PURGE] Reset staging maps"
+    $resetMapsSql = @"
+IF OBJECT_ID('$($cfg.StagingSchema).person_id_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[person_id_map];
+IF OBJECT_ID('$($cfg.StagingSchema).visit_occurrence_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[visit_occurrence_map];
+"@
+    & $cfg.SqlcmdBin @sqlcmdArgs -Q $resetMapsSql
+    if ($LASTEXITCODE -ne 0) { throw "ResetMaps purge failed" }
+  }
+}
+
 if ($cfg.User) {
   if (-not $cfg.Password) { throw "Password is required when User is set (or use -PromptPassword)" }
   $sqlcmdArgs += @('-U', $cfg.User, '-P', $cfg.Password)
@@ -116,7 +146,9 @@ $root = Get-RepoRoot
 $defaultSqlRelPaths = @(
   'etl-sql/stg/create_person_id_map.sql',
   'etl-sql/stg/create_vocabulary_map.sql',
-  'etl-sql/person.sql'
+  'etl-sql/stg/create_visit_occurrence_map.sql',
+  'etl-sql/person.sql',
+  'etl-sql/visit_occurrence.sql'
 )
 
 # 사용자 지정이 없으면 기본 목록 사용
