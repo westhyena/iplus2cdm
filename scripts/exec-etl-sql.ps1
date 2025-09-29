@@ -104,6 +104,10 @@ $sqlcmdArgs = @('-S', $cfg.Server, '-d', $cfg.Database, '-b', '-V', '16', '-I', 
   "StagingSchema=$($cfg.StagingSchema)",
   "SrcSchema=$($cfg.SrcSchema)"
 )
+# Windows 환경에서 UTF-8 스크립트를 안정적으로 처리하기 위해 코드페이지를 강제합니다.
+if ($IsWindows) {
+  $sqlcmdArgs += @('-f', '65001')
+}
 # Auth args
 if ($cfg.User) {
   if (-not $cfg.Password) { throw "Password is required when User is set (or use -PromptPassword)" }
