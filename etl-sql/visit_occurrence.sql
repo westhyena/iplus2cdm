@@ -64,18 +64,21 @@ WHERE m.ptntidno IS NULL;
   SELECT
     vm.visit_occurrence_id,
     pm.person_id,
-    CASE
-        WHEN r.OTPTMETP = 'E' THEN 9203
-        ELSE 9201
-    END AS visit_concept_id,
-    TRY_CONVERT(date, r.OTPTMDDT) AS visit_start_date,
-    COALESCE(TRY_CONVERT(datetime, r.OTPTMDTM), TRY_CONVERT(datetime, r.OTPTMDDT)) AS visit_start_datetime,
-    TRY_CONVERT(date, r.OTPTMDDT) AS visit_end_date,
-    COALESCE(TRY_CONVERT(datetime, r.OTPTMDTM), TRY_CONVERT(datetime, r.OTPTMDDT)) AS visit_end_datetime,
+    -- 당일 OP에 응급(E)이 하나라도 있으면 9203(ER), 아니면 9201(Outpatient)
+    CASE WHEN SUM(CASE WHEN r.OTPTMETP = 'E' THEN 1 ELSE 0 END) > 0 THEN 9203 ELSE 9201 END AS visit_concept_id,
+    -- 당일 최소 접수일자
+    TRY_CONVERT(date, MIN(r.OTPTMDDT)) AS visit_start_date, 
+    -- 당일 최소 접수일시(시간 없으면 일자 대체)
+    MIN(COALESCE(TRY_CONVERT(datetime, r.OTPTMDTM), TRY_CONVERT(datetime, r.OTPTMDDT))) AS visit_start_datetime, 
+    -- 당일 최대 접수일자
+    TRY_CONVERT(date, MAX(r.OTPTMDDT)) AS visit_end_date,
+    -- 당일 최대 접수일시(시간 없으면 일자 대체)
+    MAX(COALESCE(TRY_CONVERT(datetime, r.OTPTMDTM), TRY_CONVERT(datetime, r.OTPTMDDT))) AS visit_end_datetime,
     32817 AS visit_type_concept_id,
     NULL AS provider_id,
     NULL AS care_site_id,
-    r.OTPTMETP AS visit_source_value,
+    -- 모든 값을 콤마(,)로 연결하여 표시
+    STRING_AGG(r.OTPTMETP, ',') WITHIN GROUP (ORDER BY r.OTPTMETP) AS visit_source_value,
     NULL AS visit_source_concept_id,
     NULL AS admitted_from_concept_id,
     NULL AS admitted_from_source_value,
@@ -88,24 +91,27 @@ WHERE m.ptntidno IS NULL;
     vm.ptntidno = r.PTNTIDNO
     AND vm.date = r.OTPTMDDT
     AND vm.source = 'OP'
+  GROUP BY
+    vm.visit_occurrence_id,
+    pm.person_id
 ), ip_enriched AS (
   SELECT
     vm.visit_occurrence_id,
     pm.person_id,
     9202 AS visit_concept_id,
-    TRY_CONVERT(date, r.INPTADDT) AS visit_start_date,
-    COALESCE(TRY_CONVERT(datetime, r.INPTADTM), TRY_CONVERT(datetime, r.INPTADDT)) AS visit_start_datetime,
-    TRY_CONVERT(date, r.INPTDSDT) AS visit_end_date,
-    TRY_CONVERT(datetime, r.INPTDSTM) AS visit_end_datetime,
+    MIN(TRY_CONVERT(date, r.INPTADDT)) AS visit_start_date, -- 입원일 최솟값
+    MIN(COALESCE(TRY_CONVERT(datetime, r.INPTADTM), TRY_CONVERT(datetime, r.INPTADDT))) AS visit_start_datetime, -- 입원일시 최솟값(시간 없으면 일자 대체)
+    MAX(TRY_CONVERT(date, r.INPTDSDT)) AS visit_end_date, -- 퇴원일 최댓값
+    MAX(TRY_CONVERT(datetime, r.INPTDSTM)) AS visit_end_datetime, -- 퇴원일시 최댓값
     32817 AS visit_type_concept_id,
     NULL AS provider_id,
     NULL AS care_site_id,
     NULL AS visit_source_value,
     NULL AS visit_source_concept_id,
-    v1.concept_id AS admitted_from_concept_id,
-    CAST(r.INPTADRT AS varchar(50)) AS admitted_from_source_value,
-    v2.concept_id AS discharged_to_concept_id,
-    CAST(r.INPTDSRS AS varchar(50)) AS discharged_to_source_value
+    MAX(v1.concept_id) AS admitted_from_concept_id, -- 여러 값 중 대표값 사용
+    MAX(CAST(r.INPTADRT AS varchar(50))) AS admitted_from_source_value, -- 여러 값 중 대표값 사용
+    MAX(v2.concept_id) AS discharged_to_concept_id, -- 여러 값 중 대표값 사용
+    MAX(CAST(r.INPTDSRS AS varchar(50))) AS discharged_to_source_value -- 여러 값 중 대표값 사용
   FROM ip_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN vocab v1 ON v1.source_vocabulary = 'ADMIT_FROM' AND v1.source_code = CAST(r.INPTADRT AS varchar(200))
@@ -115,6 +121,9 @@ WHERE m.ptntidno IS NULL;
     vm.ptntidno = r.PTNTIDNO
     AND vm.date = r.INPTADDT
     AND vm.source = 'IP'
+  GROUP BY
+    vm.visit_occurrence_id,
+    pm.person_id
 ), all_visits AS (
   SELECT * FROM op_enriched
   UNION ALL
