@@ -1,4 +1,4 @@
-SET NOCOUNT ON;
+﻿SET NOCOUNT ON;
 
 -- 신규 소스 ID 매핑 추가
 INSERT INTO  [$(StagingSchema)].person_id_map (ptntidno, person_id)

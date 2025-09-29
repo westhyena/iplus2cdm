@@ -1,4 +1,4 @@
-SET NOCOUNT ON;
+﻿SET NOCOUNT ON;
 
 -- 신규 visit 소스키 매핑 추가 (외래/응급 OP, 입원 IP)
 ;WITH src_keys AS (
