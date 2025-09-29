@@ -48,7 +48,7 @@ WHERE m.ptntidno IS NULL;
 -- 업데이트(기존 존재 시)
 UPDATE tgt
 SET   tgt.gender_concept_id = v.gender_concept_id,
-      tgt.year_of_birth     = v.year_of_birth,
+      tgt.year_of_birth     = COALESCE(v.year_of_birth, tgt.year_of_birth),
       tgt.month_of_birth    = v.month_of_birth,
       tgt.day_of_birth      = v.day_of_birth,
       tgt.birth_datetime    = v.birth_datetime,
@@ -126,6 +126,7 @@ SELECT v.person_id,
 FROM src_enriched v
 WHERE NOT EXISTS (
   SELECT 1 FROM [$(CdmSchema)].[person] p WHERE p.person_id = v.person_id
-);
+)
+  AND v.year_of_birth IS NOT NULL;
 
 
