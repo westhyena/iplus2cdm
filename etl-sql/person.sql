@@ -35,20 +35,14 @@ WHERE m.ptntidno IS NULL;
       WHEN UPPER(LTRIM(RTRIM(r.PTNTSEXX))) IN ('F','FEMALE','여','여자','2') THEN 8532
       ELSE 8551
     END AS gender_concept_id,
-    TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,1,4)) AS year_of_birth,
-    TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,5,2)) AS month_of_birth,
-    TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,7,2)) AS day_of_birth,
+    NULLIF(TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,1,4)), 0) AS year_of_birth,
+    NULLIF(TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,5,2)), 0) AS month_of_birth,
+    NULLIF(TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,7,2)), 0) AS day_of_birth,
     TRY_CONVERT(datetime, STUFF(STUFF(r.PTNTBITH,5,0,'-'),8,0,'-') + ' 00:00:00') AS birth_datetime,
     r.PTNTIDNO AS person_source_value,
     r.PTNTSEXX AS gender_source_value
   FROM src_raw r
   JOIN map m ON m.ptntidno = r.PTNTIDNO
-), valid AS (
-  SELECT *
-  FROM src_enriched v
-  WHERE v.year_of_birth BETWEEN 1850 AND YEAR(GETDATE())
-    AND v.month_of_birth BETWEEN 1 AND 12
-    AND v.day_of_birth BETWEEN 1 AND 31
 )
 
 -- 업데이트(기존 존재 시)
@@ -61,7 +55,7 @@ SET   tgt.gender_concept_id = v.gender_concept_id,
       tgt.person_source_value = v.person_source_value,
       tgt.gender_source_value = v.gender_source_value
 FROM  [$(CdmSchema)].[person] AS tgt
-JOIN  valid v
+JOIN  src_enriched v
   ON  v.person_id = tgt.person_id;
 
 -- 삽입(신규만)
@@ -82,20 +76,14 @@ JOIN  valid v
       WHEN UPPER(LTRIM(RTRIM(r.PTNTSEXX))) IN ('F','FEMALE','여','여자','2') THEN 8532
       ELSE 8551
     END AS gender_concept_id,
-    TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,1,4)) AS year_of_birth,
-    TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,5,2)) AS month_of_birth,
-    TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,7,2)) AS day_of_birth,
+    NULLIF(TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,1,4)), 0) AS year_of_birth,
+    NULLIF(TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,5,2)), 0) AS month_of_birth,
+    NULLIF(TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,7,2)), 0) AS day_of_birth,
     TRY_CONVERT(datetime, STUFF(STUFF(r.PTNTBITH,5,0,'-'),8,0,'-') + ' 00:00:00') AS birth_datetime,
     r.PTNTIDNO AS person_source_value,
     r.PTNTSEXX AS gender_source_value
   FROM src_raw r
   JOIN map m ON m.ptntidno = r.PTNTIDNO
-), valid AS (
-  SELECT *
-  FROM src_enriched v
-  WHERE v.year_of_birth BETWEEN 1850 AND YEAR(GETDATE())
-    AND v.month_of_birth BETWEEN 1 AND 12
-    AND v.day_of_birth BETWEEN 1 AND 31
 )
 INSERT INTO [$(CdmSchema)].[person](
   person_id,
@@ -135,7 +123,7 @@ SELECT v.person_id,
        NULL AS race_source_concept_id,
        NULL AS ethnicity_source_value,
        NULL AS ethnicity_source_concept_id
-FROM valid v
+FROM src_enriched v
 WHERE NOT EXISTS (
   SELECT 1 FROM [$(CdmSchema)].[person] p WHERE p.person_id = v.person_id
 );
