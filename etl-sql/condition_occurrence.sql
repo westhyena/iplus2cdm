@@ -1,4 +1,4 @@
-SET NOCOUNT ON;
+﻿SET NOCOUNT ON;
 
 -- 조건발생 ID 자동증가: 시퀀스와 기본값 보장
 BEGIN TRY
