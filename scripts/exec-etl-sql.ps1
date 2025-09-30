@@ -152,7 +152,8 @@ $defaultSqlRelPaths = @(
   'etl-sql/stg/create_vocabulary_map.sql',
   'etl-sql/stg/create_visit_occurrence_map.sql',
   'etl-sql/person.sql',
-  'etl-sql/visit_occurrence.sql'
+  'etl-sql/visit_occurrence.sql',
+  'etl-sql/condition_occurrence.sql'
 )
 
 # 사용자 지정이 없으면 기본 목록 사용
