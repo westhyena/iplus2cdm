@@ -93,7 +93,7 @@ END CATCH
     'OP' AS src
   FROM op_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
-  JOIN visit_map  vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = r.[진료일자] AND vm.[source] = 'OP'
+  LEFT JOIN visit_map  vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.[진료일자], '-', '') AND vm.[source] = 'OP'
 ), ip_enriched AS (
   SELECT
     pm.person_id,
@@ -107,7 +107,7 @@ END CATCH
     'IP' AS src
   FROM ip_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
-  JOIN visit_map  vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = r.[진료일자] AND vm.[source] = 'IP'
+  LEFT JOIN visit_map  vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.[진료일자], '-', '') AND vm.[source] = 'IP'
 ), unioned AS (
   SELECT * FROM op_enriched
   UNION ALL
