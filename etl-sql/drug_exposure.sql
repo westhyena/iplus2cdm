@@ -115,7 +115,7 @@ END CATCH
 ), final_enriched AS (
   SELECT
     u.person_id,
-    NULL AS drug_concept_id, -- 요청에 따라 개념ID는 일단 NULL로 채움
+    0 AS drug_concept_id, -- 일단 0으로 채움
     u.drug_exposure_start_date,
     u.drug_exposure_start_datetime,
     u.drug_exposure_end_date,
