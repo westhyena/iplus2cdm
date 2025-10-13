@@ -1,4 +1,4 @@
-SET NOCOUNT ON;
+﻿SET NOCOUNT ON;
 
 -- drug_exposure_id 자동증가: 시퀀스와 기본값 보장
 BEGIN TRY
