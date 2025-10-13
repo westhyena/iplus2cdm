@@ -1,8 +1,9 @@
 SET NOCOUNT ON;
 BEGIN TRY
   BEGIN TRAN;
-  DELETE FROM [$(CdmSchema)].[visit_occurrence];
   DELETE FROM [$(CdmSchema)].[condition_occurrence];
+  DELETE FROM [$(CdmSchema)].[drug_exposure];
+  DELETE FROM [$(CdmSchema)].[visit_occurrence];
   DELETE FROM [$(CdmSchema)].[person];
   COMMIT;
 END TRY
