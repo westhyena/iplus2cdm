@@ -121,17 +121,23 @@ if ($FullReload) {
   $root = Get-RepoRoot
   $resetPath = Join-Path $root 'etl-sql/stg/reset.sql'
   if (-not (Test-Path $resetPath)) { throw "reset.sql not found: $resetPath" }
+  $resetStart = Get-Date
   Write-Host "[RESET] Executing $resetPath"
   & $cfg.SqlcmdBin @sqlcmdArgs -i $resetPath
+  $resetElapsed = (Get-Date) - $resetStart
+  Write-Host "[TIME][RESET] reset.sql 실행 시간: $($resetElapsed.ToString('hh\:mm\:ss\.fff'))"
   if ($LASTEXITCODE -ne 0) { throw "reset.sql execution failed" }
 
   if ($ResetMaps) {
     Write-Host "[PURGE] Reset staging maps"
+    $purgeStart = Get-Date
     $resetMapsSql = @"
 IF OBJECT_ID('$($cfg.StagingSchema).person_id_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[person_id_map];
 IF OBJECT_ID('$($cfg.StagingSchema).visit_occurrence_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[visit_occurrence_map];
 "@
     & $cfg.SqlcmdBin @sqlcmdArgs -Q $resetMapsSql
+    $purgeElapsed = (Get-Date) - $purgeStart
+    Write-Host "[TIME][PURGE] ResetMaps 실행 시간: $($purgeElapsed.ToString('hh\:mm\:ss\.fff'))"
     if ($LASTEXITCODE -ne 0) { throw "ResetMaps purge failed" }
   }
 }
@@ -161,15 +167,22 @@ $defaultSqlRelPaths = @(
 $candidatePaths = if ($SqlFiles -and $SqlFiles.Count -gt 0) { $SqlFiles } else { $defaultSqlRelPaths }
 
 # 순차 실행
+$overallStart = Get-Date
 foreach ($pathLike in $candidatePaths) {
   $path = if ([IO.Path]::IsPathRooted($pathLike)) { $pathLike } else { Join-Path $root $pathLike }
   if (-not (Test-Path $path)) { throw "SQL not found: $path" }
+  $fileName = Split-Path -Leaf $path
+  $start = Get-Date
   Write-Host "[EXEC] $path"
   & $cfg.SqlcmdBin @sqlcmdArgs -i $path
-  if ($LASTEXITCODE -ne 0) { throw "실행 실패: $(Split-Path -Leaf $path)" }
+  $exit = $LASTEXITCODE
+  $elapsed = (Get-Date) - $start
+  Write-Host "[TIME] $fileName 실행 시간: $($elapsed.ToString('hh\:mm\:ss\.fff'))"
+  if ($exit -ne 0) { throw "실행 실패: $fileName" }
 }
 
-Write-Host "[OK] ETL SQL 실행 완료 (CDM=$($cfg.CdmSchema), STG=$($cfg.StagingSchema), SRC=$($cfg.SrcSchema))"
+$overallElapsed = (Get-Date) - $overallStart
+Write-Host "[OK] ETL SQL 실행 완료 (CDM=$($cfg.CdmSchema), STG=$($cfg.StagingSchema), SRC=$($cfg.SrcSchema)) | 총 소요: $($overallElapsed.ToString('hh\:mm\:ss\.fff'))"
 
 
 
