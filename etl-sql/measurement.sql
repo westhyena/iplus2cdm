@@ -159,7 +159,8 @@ END CATCH;
 ), src_enriched AS (
   SELECT  
     pm.person_id,
-    NULL AS measurement_concept_id,
+    -- TODO
+    0 AS measurement_concept_id,
     TRY_CONVERT(date, t.REGDATE) AS measurement_date,
     NULL AS measurement_datetime,
     NULL AS measurement_time,
