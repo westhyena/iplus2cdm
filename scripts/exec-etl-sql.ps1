@@ -159,6 +159,7 @@ $defaultSqlRelPaths = @(
   'etl-sql/stg/create_visit_occurrence_map.sql',
   'etl-sql/person.sql',
   'etl-sql/visit_occurrence.sql',
+  'etl-sql/observation_period.sql',
   'etl-sql/drug_exposure.sql',
   'etl-sql/condition_occurrence.sql'
 )
