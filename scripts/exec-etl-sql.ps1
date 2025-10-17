@@ -161,7 +161,8 @@ $defaultSqlRelPaths = @(
   'etl-sql/visit_occurrence.sql',
   'etl-sql/observation_period.sql',
   'etl-sql/drug_exposure.sql',
-  'etl-sql/condition_occurrence.sql'
+  'etl-sql/condition_occurrence.sql',
+  'etl-sql/measurement.sql'
 )
 
 # 사용자 지정이 없으면 기본 목록 사용
