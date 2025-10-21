@@ -132,36 +132,34 @@ function Get-OutputPath([string]$sqlPath) {
   return (Join-Path $outDir $csv)
 }
 
-# Run each file and capture output to CSV via sqlcmd -s -W -h -1
+# Run each file and write output directly to CSV via sqlcmd -o
 foreach ($sqlPath in $filesToRun) {
   $fileName = Split-Path -Leaf $sqlPath
   $outPath = Get-OutputPath -sqlPath $sqlPath
   Write-Host "[EXEC] $fileName -> $outPath"
 
-  # CSV로 내보내기: -s(구분자), -W(공백 트림)
-  # sqlcmd의 CSV는 단순 구분자 기반이므로, 필드 내 구분자가 존재할 수 있는 경우 QUOTED CSV를 원하면 BCP/FORMATFILE 확장 필요
-  $args = @()
-  $args += $sqlcmdArgs
-  $args += @('-i', $sqlPath)
-  $args += @('-s', ',')
-  $args += @('-W')
+  # 임시 SQL 생성: SET NOCOUNT ON; 을 프리펜드하여 (n rows affected) 제거
+  $tmpSql = [System.IO.Path]::GetTempFileName()
+  try {
+    $original = Get-Content -LiteralPath $sqlPath -Raw
+    $prefixed = "SET NOCOUNT ON;`n" + $original
+    Set-Content -LiteralPath $tmpSql -Value $prefixed -Encoding UTF8
 
-  $result = & $cfg.SqlcmdBin @args 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    throw "실행 실패: $fileName`n$result"
-  }
+    # CSV 옵션: -s(구분자), -W(공백 트림), -o(파일로 직접 쓰기)
+    $args = @()
+    $args += $sqlcmdArgs
+    $args += @('-s', ',')
+    $args += @('-W')
+    $args += @('-i', $tmpSql)
+    $args += @('-o', $outPath)
 
-  # Windows의 CRLF/요약 라인 제거를 위해 결과 후처리
-  $lines = @()
-  foreach ($line in $result) {
-    if ($line -match '^(\(\d+ rows? affected\))$') { continue }
-    if ($line -match '^Changed database context to') { continue }
-    if ($line -match '^NULL value is replaced by') { continue }
-    $lines += $line
+    & $cfg.SqlcmdBin @args
+    if ($LASTEXITCODE -ne 0) { throw "실행 실패: $fileName (exit=$LASTEXITCODE)" }
+    Write-Host "[OK] Wrote: $outPath"
   }
-  $content = ($lines -join [Environment]::NewLine)
-  Set-Content -LiteralPath $outPath -Value $content -Encoding UTF8
-  Write-Host "[OK] Wrote: $outPath"
+  finally {
+    if (Test-Path $tmpSql) { Remove-Item -LiteralPath $tmpSql -Force -ErrorAction SilentlyContinue }
+  }
 }
 
 Write-Host "[OK] 모든 extract SQL 실행 및 CSV 저장 완료. 출력: $outDir"

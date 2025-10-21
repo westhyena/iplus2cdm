@@ -67,3 +67,5 @@ if ($unzip -and $ext -eq ".zip") {
 }
 
 Write-Host "[OK] 압축 해제 완료: $zipFullPath -> $($cfg.VocabExtractDir)"
+
+
