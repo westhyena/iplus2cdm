@@ -128,11 +128,11 @@ if (-not $filesToRun -or $filesToRun.Count -eq 0) { throw "실행할 extract_*.s
 
 function Get-OutputPath([string]$sqlPath) {
   $name = [IO.Path]::GetFileNameWithoutExtension($sqlPath) # e.g., extract_measurement
-  $csv = "$name.csv"
-  return (Join-Path $outDir $csv)
+  $tsv = "$name.tsv"
+  return (Join-Path $outDir $tsv)
 }
 
-# Run each file and write output directly to CSV via sqlcmd -o
+# Run each file and write output directly to TSV via sqlcmd -o
 foreach ($sqlPath in $filesToRun) {
   $fileName = Split-Path -Leaf $sqlPath
   $outPath = Get-OutputPath -sqlPath $sqlPath
@@ -145,10 +145,10 @@ foreach ($sqlPath in $filesToRun) {
     $prefixed = "SET NOCOUNT ON;`n" + $original
     Set-Content -LiteralPath $tmpSql -Value $prefixed -Encoding UTF8
 
-    # CSV 옵션: -s(구분자), -W(공백 트림), -o(파일로 직접 쓰기)
+    # TSV 옵션: -s(구분자=TAB), -W(공백 트림), -o(파일로 직접 쓰기)
     $args = @()
     $args += $sqlcmdArgs
-    $args += @('-s', ',')
+    $args += @('-s', "`t")
     $args += @('-W')
     $args += @('-i', $tmpSql)
     $args += @('-o', $outPath)
@@ -162,6 +162,6 @@ foreach ($sqlPath in $filesToRun) {
   }
 }
 
-Write-Host "[OK] 모든 extract SQL 실행 및 CSV 저장 완료. 출력: $outDir"
+Write-Host "[OK] 모든 extract SQL 실행 및 TSV 저장 완료. 출력: $outDir"
 
 
