@@ -48,9 +48,9 @@ CROSS APPLY (
         ('Item37', t.Item37, t.symbol37),
         ('Item38', t.Item38, t.symbol38),
         ('Item39', t.Item39, t.symbol39),
-        ('Item40', t.Item40, t.symbol40),
+        ('Item40', t.Item40, t.symbol40)
 ) AS v(ItemNumber, ItemName, Symbol)
 WHERE 
-    v.ItemName IS NOT NULL;
+    v.ItemName IS NOT NULL
     AND LEN(v.ItemName) > 0;
 
