@@ -61,7 +61,7 @@ END CATCH
   FROM  [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
-    AND o.[행위구분] = 1
+    AND o.[수가분류] = 3
 ), ip_raw AS (
   -- 입원(OCSSLIPI)
   SELECT
@@ -74,7 +74,7 @@ END CATCH
   FROM  [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
-    AND i.[행위구분] = 1
+    AND i.[수가분류] = 3
 ), op_enriched AS (
   SELECT
     pm.person_id,
