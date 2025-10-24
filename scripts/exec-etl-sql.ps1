@@ -12,7 +12,10 @@
   [string]$SqlcmdBin,
   [string[]]$SqlFiles,
   [switch]$FullReload,
-  [switch]$ResetMaps
+  [switch]$ResetMaps,
+  [string]$ConditionMapCsvPath,
+  [string]$BcpBin,
+  [int]$BcpCodePage
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,6 +35,9 @@ $defaults = @{
   StagingSchema  = "stg_cdm"
   SrcSchema      = "dbo"
   SqlcmdBin      = "sqlcmd"
+  ConditionMapCsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/condition_map.tsv")
+  BcpBin         = "bcp"
+  BcpCodePage    = 65001
 }
 
 # Auto .env
@@ -97,6 +103,7 @@ if (-not $cfg.Password -and $cfg.User -and $PromptPassword) {
 
 function Require-Command($name) { if (-not (Get-Command $name -ErrorAction SilentlyContinue)) { throw "Required command not found: $name" } }
 Require-Command $cfg.SqlcmdBin
+Require-Command $cfg.BcpBin
 
 # sqlcmd args
 $sqlcmdArgs = @('-S', $cfg.Server, '-d', $cfg.Database, '-b', '-V', '16', '-I', '-v',
@@ -149,12 +156,18 @@ if ($cfg.User) {
   $sqlcmdArgs += @('-E')
 }
 
+# 도메인별 로더 모듈 로드 (condition map)
+$root = Get-RepoRoot
+$condModule = Join-Path $root 'scripts/modules/condition-map.ps1'
+if (Test-Path $condModule) { . $condModule }
+
 # Resolve SQL files
 $root = Get-RepoRoot
 
 # 기본 실행 목록 (상대경로, 리포지토리 루트 기준)
 $defaultSqlRelPaths = @(
   'etl-sql/stg/create_person_id_map.sql',
+  'etl-sql/stg/create_condition_vocabulary_map.sql',
   'etl-sql/stg/create_vocabulary_map.sql',
   'etl-sql/stg/create_visit_occurrence_map.sql',
   'etl-sql/person.sql',
@@ -181,6 +194,19 @@ foreach ($pathLike in $candidatePaths) {
   $elapsed = (Get-Date) - $start
   Write-Host "[TIME] $fileName 실행 시간: $($elapsed.ToString('hh\:mm\:ss\.fff'))"
   if ($exit -ne 0) { throw "실행 실패: $fileName" }
+
+  # After creating condition_vocabulary_map, load data from CSV via bulk copy
+  if ($fileName -eq 'create_condition_vocabulary_map.sql') {
+    try {
+      if (Get-Command Invoke-LoadConditionVocabularyMap -ErrorAction SilentlyContinue) {
+        Invoke-LoadConditionVocabularyMap -csvPath $cfg.ConditionMapCsvPath -stagingSchema $cfg.StagingSchema -sqlcmd $cfg.SqlcmdBin -sqlcmdArgs $sqlcmdArgs -server $cfg.Server -database $cfg.Database -user $cfg.User -password $cfg.Password
+      } else {
+        throw 'Invoke-LoadConditionVocabularyMap 모듈을 찾지 못했습니다. scripts/modules/condition-map.ps1 로드를 확인하세요.'
+      }
+    } catch {
+      throw "condition_vocabulary_map 적재 실패: $($_.Exception.Message)"
+    }
+  }
 }
 
 $overallElapsed = (Get-Date) - $overallStart
