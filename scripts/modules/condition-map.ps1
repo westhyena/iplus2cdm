@@ -40,6 +40,26 @@ function Detect-RowTerminator([string]$filePath) {
   return '0x0a'
 }
 
+
+function Ensure-TrailingNewline([string]$filePath, [string]$rowTerm) {
+  if (-not (Test-Path -LiteralPath $filePath)) { return }
+  $bytes = if ($rowTerm -eq '0x0d0a') { [byte[]]@(13,10) } else { [byte[]]@(10) }
+  $fs = [System.IO.File]::Open($filePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::Read)
+  try {
+    $len = $fs.Length
+    if ($len -ge $bytes.Length) {
+      $fs.Seek(-[long]$bytes.Length, [System.IO.SeekOrigin]::End) | Out-Null
+      $buf = New-Object byte[] $bytes.Length
+      $null = $fs.Read($buf, 0, $buf.Length)
+      $match = $true
+      for ($i=0; $i -lt $bytes.Length; $i++) { if ($buf[$i] -ne $bytes[$i]) { $match = $false; break } }
+      if ($match) { return }
+    }
+    $fs.Seek(0, [System.IO.SeekOrigin]::End) | Out-Null
+    $fs.Write($bytes, 0, $bytes.Length)
+  } finally { $fs.Close() }
+}
+
 function Ensure-DynamicStageTable([string]$sqlcmd, [object]$sqlcmdArgs, [string]$schema, [string]$table, [string]$filePath) {
   $qualified = (Quote-Ident $schema) + "." + (Quote-Ident $table)
   $objId = "$schema.$table"
@@ -106,6 +126,9 @@ function Invoke-LoadConditionVocabularyMap([string]$csvPath, [string]$stagingSch
     $fileToLoad = $tmpFile
     $rowTerm = '0x0d0a'
   }
+
+  # 행 종료 문자가 없으면 추가 (마지막 줄 개행 보장)
+  Ensure-TrailingNewline -filePath $fileToLoad -rowTerm $rowTerm
 
   # 스테이징 테이블을 입력 파일 헤더 기반으로 동적 생성
   Ensure-DynamicStageTable -sqlcmd $sqlcmd -sqlcmdArgs $sqlcmdArgs -schema $stagingSchema -table 'condition_vocabulary_map_stage' -filePath $fileToLoad
