@@ -14,6 +14,7 @@
   [switch]$FullReload,
   [switch]$ResetMaps,
   [string]$ConditionMapCsvPath,
+  [string]$MeasurementMapTsvPath,
   [string]$BcpBin,
   [int]$BcpCodePage
 )
@@ -36,6 +37,7 @@ $defaults = @{
   SrcSchema      = "dbo"
   SqlcmdBin      = "sqlcmd"
   ConditionMapCsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/condition_map.tsv")
+  MeasurementMapTsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/measurement_map.tsv")
   BcpBin         = "bcp"
   BcpCodePage    = 65001
 }
@@ -161,6 +163,10 @@ $root = Get-RepoRoot
 $condModule = Join-Path $root 'scripts/modules/condition-map.ps1'
 if (Test-Path $condModule) { . $condModule }
 
+# 도메인별 로더 모듈 로드 (measurement map)
+$measModule = Join-Path $root 'scripts/modules/measurement-map.ps1'
+if (Test-Path $measModule) { . $measModule }
+
 # Resolve SQL files
 $root = Get-RepoRoot
 
@@ -168,6 +174,7 @@ $root = Get-RepoRoot
 $defaultSqlRelPaths = @(
   'etl-sql/stg/create_person_id_map.sql',
   'etl-sql/stg/create_condition_vocabulary_map.sql',
+  'etl-sql/stg/create_measurement_vocabulary_map.sql',
   'etl-sql/stg/create_vocabulary_map.sql',
   'etl-sql/stg/create_visit_occurrence_map.sql',
   'etl-sql/person.sql',
@@ -205,6 +212,17 @@ foreach ($pathLike in $candidatePaths) {
       }
     } catch {
       throw "condition_vocabulary_map 적재 실패: $($_.Exception.Message)"
+    }
+  }
+  elseif ($fileName -eq 'create_measurement_vocabulary_map.sql') {
+    try {
+      if (Get-Command Invoke-LoadMeasurementVocabularyMap -ErrorAction SilentlyContinue) {
+        Invoke-LoadMeasurementVocabularyMap -tsvPath $cfg.MeasurementMapTsvPath -stagingSchema $cfg.StagingSchema -sqlcmd $cfg.SqlcmdBin -sqlcmdArgs $sqlcmdArgs -server $cfg.Server -database $cfg.Database -user $cfg.User -password $cfg.Password
+      } else {
+        throw 'Invoke-LoadMeasurementVocabularyMap 모듈을 찾지 못했습니다. scripts/modules/measurement-map.ps1 로드를 확인하세요.'
+      }
+    } catch {
+      throw "measurement_vocabulary_map 적재 실패: $($_.Exception.Message)"
     }
   }
 }
