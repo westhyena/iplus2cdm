@@ -47,6 +47,14 @@ END CATCH;
   SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
+), meas_map AS (
+  SELECT
+    UPPER(LTRIM(RTRIM(LABNM))) AS LABNM,
+    UPPER(LTRIM(RTRIM(ItemName))) AS ItemName,
+    common_concept_id,
+    right_concept_id,
+    left_concept_id
+  FROM [$(StagingSchema)].measurement_vocabulary_map
 ), lab_master AS (
   SELECT 
     m.LABID,
@@ -159,8 +167,15 @@ END CATCH;
 ), src_enriched AS (
   SELECT  
     pm.person_id,
-    -- TODO
-    0 AS measurement_concept_id,
+    COALESCE(
+      CASE
+        WHEN UPPER(LTRIM(RTRIM(t.LR))) IN ('R','OD','우','RIGHT','RIGHTEYE','RIGHT EYE','OD(우)') THEN mm.left_concept_id
+        WHEN UPPER(LTRIM(RTRIM(t.LR))) IN ('L','OS','좌','LEFT','LEFTEYE','LEFT EYE','OS(좌)') THEN mm.right_concept_id
+        ELSE mm.common_concept_id
+      END,
+      mm.common_concept_id,
+      0
+    ) AS measurement_concept_id,
     TRY_CONVERT(date, t.REGDATE) AS measurement_date,
     NULL AS measurement_datetime,
     NULL AS measurement_time,
@@ -186,6 +201,9 @@ END CATCH;
     ON
       m.LABID = t.LABID
       AND m.ItemNumber = t.ItemNumber
+  LEFT JOIN meas_map mm
+    ON UPPER(LTRIM(RTRIM(m.LABNM))) = mm.LABNM
+   AND UPPER(LTRIM(RTRIM(m.ItemName))) = mm.ItemName
   JOIN person_map pm
     ON pm.ptntidno = t.PTNTIDNO
   JOIN visit_map vm
