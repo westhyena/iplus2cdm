@@ -175,18 +175,11 @@ function Invoke-LoadDrugVocabularyMap([string]$path, [string]$stagingSchema, [st
   $hcols = $header -split $del, [System.StringSplitOptions]::None | ForEach-Object { $_ -replace "\r$","" }
   $hcols = $hcols | ForEach-Object { $_.Trim() }
   # 후보군
-  $codeName = ($hcols | Where-Object { $_ -eq '청구코드' -or $_ -eq '코드' } | Select-Object -First 1)
-  $korName  = ($hcols | Where-Object { $_ -eq '한글명' -or $_ -eq '급여명' } | Select-Object -First 1)
-  $tgtName  = ($hcols | Where-Object { $_ -eq 'TARGET_CONCEPT_ID_1' -or $_ -eq 'TARGET_CONCEPT_ID' } | Select-Object -First 1)
-  $srcName  = ($hcols | Where-Object { $_ -eq 'SOURCE_CONCEPT_ID' } | Select-Object -First 1)
 
-  if (-not $codeName) { throw "입력 파일에서 '청구코드'(또는 '코드') 컬럼을 찾을 수 없습니다." }
-  if (-not $korName)  { $korName = '한글명' } # 없으면 빈값으로 들어감
-
-  $colCode = Drug-QuoteIdent $codeName
-  $colName = Drug-QuoteIdent $korName
-  $colTgt  = if ($tgtName) { Drug-QuoteIdent $tgtName } else { '[__no_tgt__]' }
-  $colSrc  = if ($srcName) { Drug-QuoteIdent $srcName } else { '[__no_src__]' }
+  $colCode = Drug-QuoteIdent '청구코드'
+  $colName = Drug-QuoteIdent '한글명'
+  $colTgt  = Drug-QuoteIdent 'TARGET_CONCEPT_ID_1'
+  $colSrc  = Drug-QuoteIdent 'SOURCE_CONCEPT_ID'
 
   $sql = @"
 BEGIN TRY
