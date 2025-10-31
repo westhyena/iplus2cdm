@@ -87,7 +87,7 @@ function Drug-EnsureTrailingNewline([string]$filePath, [string]$rowTerm) {
 function Drug-EnsureDynamicStageTable([string]$sqlcmd, [object]$sqlcmdArgs, [string]$schema, [string]$table, [string]$filePath) {
   $qualified = (Drug-QuoteIdent $schema) + "." + (Drug-QuoteIdent $table)
   $objId = "$schema.$table"
-  $header = Get-Content -LiteralPath $filePath -TotalCount 1
+  $header = Get-Content -LiteralPath $filePath -Encoding utf8 -TotalCount 1
   if (-not $header) { throw "헤더를 읽지 못했습니다: $filePath" }
   
   # 구분자 결정 (탭 우선, 없으면 콤마)
@@ -170,7 +170,7 @@ function Invoke-LoadDrugVocabularyMap([string]$path, [string]$stagingSchema, [st
   $stage = (Drug-QuoteIdent $stagingSchema) + '.[drug_vocabulary_map_stage]'
 
   # 스테이지 테이블 실제 컬럼명 조회 후 존재하는 컬럼 우선 사용
-  $header = Get-Content -LiteralPath $fileToLoad -TotalCount 1
+  $header = Get-Content -LiteralPath $fileToLoad -Encoding utf8 -TotalCount 1
   $del = if ($header.Contains("`t")) { "`t" } else { "," }
   $hcols = $header -split $del, [System.StringSplitOptions]::None | ForEach-Object { $_ -replace "\r$","" }
   $hcols = $hcols | ForEach-Object { $_.Trim() }
