@@ -189,16 +189,12 @@ BEGIN CATCH
   DELETE FROM $dest;
 END CATCH
 
-INSERT INTO $dest (source_code, source_Name, target_concept_id, source_concept_id)
+INSERT INTO $dest (source_code, source_name, target_concept_id, source_concept_id)
 SELECT
   LEFT(CAST($colCode AS NVARCHAR(200)), 200) AS source_code,
-  LEFT(CAST($colName AS NVARCHAR(500)), 500) AS source_Name,
-  CASE WHEN COL_LENGTH('$($stagingSchema).drug_vocabulary_map_stage', REPLACE('$tgtName','''','''''')) IS NOT NULL
-       THEN TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(CAST($colTgt AS NVARCHAR(100)))),''))
-       ELSE NULL END AS target_concept_id,
-  CASE WHEN COL_LENGTH('$($stagingSchema).drug_vocabulary_map_stage', REPLACE('$srcName','''','''''')) IS NOT NULL
-       THEN TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(CAST($colSrc AS NVARCHAR(100)))),''))
-       ELSE NULL END AS source_concept_id
+  LEFT(CAST($colName AS NVARCHAR(500)), 500) AS source_name,
+  CAST($colTgt AS int) AS target_concept_id,
+  CAST($colSrc AS int) AS source_concept_id,
 FROM $stage;
 "@
   & $sqlcmd @sqlcmdArgs -Q $sql | Out-Null
