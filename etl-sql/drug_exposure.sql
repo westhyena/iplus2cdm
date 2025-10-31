@@ -49,6 +49,14 @@ END CATCH
   SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
+), drug_map AS (
+  -- 사용자 제공 매핑: 청구코드 정규화 후 매핑
+  SELECT
+    UPPER(LTRIM(RTRIM(CAST(m.source_code AS varchar(200))))) AS code_norm,
+    TRY_CONVERT(int, m.target_concept_id) AS target_concept_id,
+    TRY_CONVERT(int, m.source_concept_id) AS source_concept_id
+  FROM [$(StagingSchema)].drug_vocabulary_map m
+  WHERE TRY_CONVERT(int, m.target_concept_id) IS NOT NULL
 ), op_raw AS (
   -- 외래(OCSSLIP)
   SELECT
@@ -85,6 +93,7 @@ END CATCH
     TRY_CONVERT(date, DATEADD(day, COALESCE(r.days_supply, 1) - 1, TRY_CONVERT(date, r.svc_date))) AS drug_exposure_end_date,
     NULL AS drug_exposure_end_datetime,
     CAST(r.claim_code AS varchar(50)) AS drug_source_value,
+    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
     r.days_supply,
     r.dose_amount,
     r.dose_frequency,
@@ -101,6 +110,7 @@ END CATCH
     TRY_CONVERT(date, DATEADD(day, COALESCE(r.days_supply, 1) - 1, TRY_CONVERT(date, r.svc_date))) AS drug_exposure_end_date,
     NULL AS drug_exposure_end_datetime,
     CAST(r.claim_code AS varchar(50)) AS drug_source_value,
+    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
     r.days_supply,
     r.dose_amount,
     r.dose_frequency,
@@ -115,7 +125,7 @@ END CATCH
 ), final_enriched AS (
   SELECT
     u.person_id,
-    0 AS drug_concept_id, -- 일단 0으로 채움
+    COALESCE(dm.target_concept_id, 0) AS drug_concept_id,
     u.drug_exposure_start_date,
     u.drug_exposure_start_datetime,
     u.drug_exposure_end_date,
@@ -136,10 +146,11 @@ END CATCH
     u.visit_occurrence_id,
     NULL AS visit_detail_id,
     u.drug_source_value,
-    NULL AS drug_source_concept_id,
+    dm.source_concept_id AS drug_source_concept_id,
     NULL AS route_source_value,
     NULL AS dose_unit_source_value
   FROM unioned u
+  LEFT JOIN drug_map dm ON dm.code_norm = u.normalized_code
 )
 
 -- 신규만 삽입
