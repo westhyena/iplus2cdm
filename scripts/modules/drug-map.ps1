@@ -194,7 +194,7 @@ SELECT
   LEFT(CAST($colCode AS NVARCHAR(200)), 200) AS source_code,
   LEFT(CAST($colName AS NVARCHAR(500)), 500) AS source_name,
   CAST($colTgt AS int) AS target_concept_id,
-  CAST($colSrc AS int) AS source_concept_id,
+  CAST($colSrc AS int) AS source_concept_id
 FROM $stage;
 "@
   & $sqlcmd @sqlcmdArgs -Q $sql | Out-Null
