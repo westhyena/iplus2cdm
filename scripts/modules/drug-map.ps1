@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$false)][string]$BcpBin = 'bcp',
   [Parameter(Mandatory=$false)][int]$BcpCodePage = 65001
 )
