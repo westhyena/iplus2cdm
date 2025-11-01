@@ -1,6 +1,6 @@
 param(
-  [Parameter(Mandatory=$false)][string]$BcpBin = 'bcp',
-  [Parameter(Mandatory=$false)][int]$BcpCodePage = 65001
+  [Parameter(Mandatory = $false)][string]$BcpBin = 'bcp',
+  [Parameter(Mandatory = $false)][int]$BcpCodePage = 65001
 )
 
 function Quote-Ident([string]$name) { return "[" + ($name -replace "]", "]]" ) + "]" }
@@ -24,7 +24,8 @@ function Write-ConditionMapTsv([string]$srcCsv, [string]$outPath) {
       $line = "$src`t$kor`t$eng`t$cid"
       $sw.WriteLine($line)
     }
-  } finally { $sw.Dispose() }
+  }
+  finally { $sw.Dispose() }
 }
 
 function Detect-RowTerminator([string]$filePath) {
@@ -33,31 +34,34 @@ function Detect-RowTerminator([string]$filePath) {
     try {
       $buf = New-Object byte[] 1048576
       $n = $fs.Read($buf, 0, $buf.Length)
-      for ($i=0; $i -lt ($n - 1); $i++) { if ($buf[$i] -eq 13 -and $buf[$i+1] -eq 10) { return '0x0d0a' } }
-      for ($i=0; $i -lt $n; $i++) { if ($buf[$i] -eq 10) { return '0x0a' } }
-    } finally { $fs.Close() }
-  } catch {}
+      for ($i = 0; $i -lt ($n - 1); $i++) { if ($buf[$i] -eq 13 -and $buf[$i + 1] -eq 10) { return '0x0d0a' } }
+      for ($i = 0; $i -lt $n; $i++) { if ($buf[$i] -eq 10) { return '0x0a' } }
+    }
+    finally { $fs.Close() }
+  }
+  catch {}
   return '0x0a'
 }
 
 
 function Ensure-TrailingNewline([string]$filePath, [string]$rowTerm) {
   if (-not (Test-Path -LiteralPath $filePath)) { return }
-  $bytes = if ($rowTerm -eq '0x0d0a') { [byte[]]@(13,10) } else { [byte[]]@(10) }
+  $bytes = if ($rowTerm -eq '0x0d0a') { [byte[]]@(13, 10) } else { [byte[]]@(10) }
   $fs = [System.IO.File]::Open($filePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::Read)
   try {
     $len = $fs.Length
     if ($len -ge $bytes.Length) {
-      $fs.Seek(-[long]$bytes.Length, [System.IO.SeekOrigin]::End) | Out-Null
+      $fs.Seek( - [long]$bytes.Length, [System.IO.SeekOrigin]::End) | Out-Null
       $buf = New-Object byte[] $bytes.Length
       $null = $fs.Read($buf, 0, $buf.Length)
       $match = $true
-      for ($i=0; $i -lt $bytes.Length; $i++) { if ($buf[$i] -ne $bytes[$i]) { $match = $false; break } }
+      for ($i = 0; $i -lt $bytes.Length; $i++) { if ($buf[$i] -ne $bytes[$i]) { $match = $false; break } }
       if ($match) { return }
     }
     $fs.Seek(0, [System.IO.SeekOrigin]::End) | Out-Null
     $fs.Write($bytes, 0, $bytes.Length)
-  } finally { $fs.Close() }
+  }
+  finally { $fs.Close() }
 }
 
 function Ensure-DynamicStageTable([string]$sqlcmd, [object]$sqlcmdArgs, [string]$schema, [string]$table, [string]$filePath) {
@@ -65,11 +69,11 @@ function Ensure-DynamicStageTable([string]$sqlcmd, [object]$sqlcmdArgs, [string]
   $objId = "$schema.$table"
   $header = Get-Content -LiteralPath $filePath -TotalCount 1
   if (-not $header) { throw "헤더를 읽지 못했습니다: $filePath" }
-  $cols = $header -split "`t", [System.StringSplitOptions]::None | ForEach-Object { $_ -replace "\r$","" }
+  $cols = $header -split "`t", [System.StringSplitOptions]::None | ForEach-Object { $_ -replace "\r$", "" }
   $cols = $cols | ForEach-Object { $_.Trim() }
   if ($cols.Count -eq 0) { throw "헤더 컬럼이 없습니다: $filePath" }
   # 무명 컬럼 대비
-  for ($i=0; $i -lt $cols.Count; $i++) { if (-not $cols[$i]) { $cols[$i] = "COL_" + ($i+1) } }
+  for ($i = 0; $i -lt $cols.Count; $i++) { if (-not $cols[$i]) { $cols[$i] = "COL_" + ($i + 1) } }
   $colsQuoted = $cols | ForEach-Object { Quote-Ident $_ }
   $colsDef = ($colsQuoted | ForEach-Object { "$_ NVARCHAR(4000) NULL" }) -join ","
   $sql = @"
@@ -89,8 +93,8 @@ function Invoke-BcpImport([string]$server, [string]$database, [string]$user, [st
 
   # Log (mask password)
   $authLog = @()
-  for ($i=0; $i -lt $auth.Count; $i++) {
-    if ($auth[$i] -eq '-P' -and ($i+1) -lt $auth.Count) { $authLog += @('-P', '******'); $i++; continue }
+  for ($i = 0; $i -lt $auth.Count; $i++) {
+    if ($auth[$i] -eq '-P' -and ($i + 1) -lt $auth.Count) { $authLog += @('-P', '******'); $i++; continue }
     $authLog += $auth[$i]
   }
   Write-Host ("[INFO] BCP: $BcpBin $dbtable in $filePath " + ($authLog -join ' ') + ' ' + ($opts -join ' '))
@@ -102,7 +106,7 @@ function Invoke-BcpImport([string]$server, [string]$database, [string]$user, [st
 function Invoke-LoadConditionVocabularyMap([string]$csvPath, [string]$stagingSchema, [string]$sqlcmd, [object]$sqlcmdArgs, [string]$server, [string]$database, [string]$user, [string]$password) {
   if (-not (Test-Path -LiteralPath $csvPath)) {
     $base = [System.IO.Path]::GetFileNameWithoutExtension($csvPath)
-    $dir  = [System.IO.Path]::GetDirectoryName($csvPath)
+    $dir = [System.IO.Path]::GetDirectoryName($csvPath)
     $candidates = @(
       (Join-Path $dir ($base + '.tsv')),
       (Join-Path $dir ($base + '.csv')),
@@ -119,7 +123,8 @@ function Invoke-LoadConditionVocabularyMap([string]$csvPath, [string]$stagingSch
   if ($ext -eq '.tsv' -or $ext -eq '.txt') {
     $fileToLoad = $csvPath
     $rowTerm = Detect-RowTerminator -filePath $fileToLoad
-  } else {
+  }
+  else {
     $tmpDir = [System.IO.Path]::GetTempPath()
     $tmpFile = Join-Path $tmpDir "condition_vocabulary_map.4cols.tsv"
     Write-ConditionMapTsv -srcCsv $csvPath -outPath $tmpFile
@@ -139,9 +144,9 @@ function Invoke-LoadConditionVocabularyMap([string]$csvPath, [string]$stagingSch
   $dest = (Quote-Ident $stagingSchema) + '.[condition_vocabulary_map]'
   $stage = (Quote-Ident $stagingSchema) + '.[condition_vocabulary_map_stage]'
   $colSource = Quote-Ident 'LOCAL_CD1'
-  $colName    = Quote-Ident 'LOCAL_CD1_NM'
-  $colTgt    = Quote-Ident 'TARGET_CONCEPT_ID_1'
-  $colSrc    = Quote-Ident 'SOURCE_CONCEPT_ID'
+  $colName = Quote-Ident 'LOCAL_CD1_NM'
+  $colTgt = Quote-Ident 'TARGET_CONCEPT_ID_1'
+  $colSrc = Quote-Ident 'SOURCE_CONCEPT_ID'
   $sql = @"
 BEGIN TRY
   TRUNCATE TABLE $dest;
@@ -150,15 +155,17 @@ BEGIN CATCH
   DELETE FROM $dest;
 END CATCH
 
-INSERT INTO $dest (source_code, kor_name, eng_name, concept_id)
+INSERT INTO $dest (source_code, name, target_concept_id, source_concept_id)
 SELECT
   LEFT(CAST($colSource AS NVARCHAR(200)), 200),
   LEFT(CAST($colName AS NVARCHAR(500)), 500),
   CAST($colTgt AS int) AS target_concept_id,
   CAST($colSrc AS int) AS source_concept_id
 FROM $stage
-WHERE LEN(INVALID_REASON) = 0;
+WHERE INVALID_REASON IS NULL;
 "@
+  Write-Host "[INFO] Executing SQL:"
+  Write-Host $sql
   & $sqlcmd @sqlcmdArgs -Q $sql | Out-Null
 }
 
