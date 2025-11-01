@@ -56,7 +56,6 @@ END CATCH
     m.target_concept_id,
     m.source_concept_id
   FROM [$(StagingSchema)].condition_vocabulary_map m
-  WHERE TRY_CONVERT(int, m.concept_id) IS NOT NULL
 ), op_raw AS (
   SELECT
     o.PTNTIDNO,
