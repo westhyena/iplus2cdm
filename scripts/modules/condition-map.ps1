@@ -138,10 +138,10 @@ function Invoke-LoadConditionVocabularyMap([string]$csvPath, [string]$stagingSch
 
   $dest = (Quote-Ident $stagingSchema) + '.[condition_vocabulary_map]'
   $stage = (Quote-Ident $stagingSchema) + '.[condition_vocabulary_map_stage]'
-  $colSource = Quote-Ident '상병코드'
-  $colKor    = Quote-Ident '한글명칭'
-  $colEng    = Quote-Ident '영문명칭'
-  $colCid    = Quote-Ident '공통 Concept ID'
+  $colSource = Quote-Ident 'LOCAL_CD1'
+  $colName    = Quote-Ident 'LOCAL_CD1_NM'
+  $colTgt    = Quote-Ident 'TARGET_CONCEPT_ID_1'
+  $colSrc    = Quote-Ident 'SOURCE_CONCEPT_ID'
   $sql = @"
 BEGIN TRY
   TRUNCATE TABLE $dest;
@@ -153,10 +153,11 @@ END CATCH
 INSERT INTO $dest (source_code, kor_name, eng_name, concept_id)
 SELECT
   LEFT(CAST($colSource AS NVARCHAR(200)), 200),
-  LEFT(CAST($colKor AS NVARCHAR(500)), 500),
-  LEFT(CAST($colEng AS NVARCHAR(500)), 500),
-  TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(CAST($colCid AS NVARCHAR(100)))),'')) AS concept_id
-FROM $stage;
+  LEFT(CAST($colName AS NVARCHAR(500)), 500),
+  CAST($colTgt AS int) AS target_concept_id,
+  CAST($colSrc AS int) AS source_concept_id
+FROM $stage
+WHERE LEN(INVALID_REASON) = 0;
 "@
   & $sqlcmd @sqlcmdArgs -Q $sql | Out-Null
 }

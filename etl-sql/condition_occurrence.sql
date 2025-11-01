@@ -51,8 +51,10 @@ END CATCH
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
 ), cond_map AS (
   -- 사용자 제공 매핑: 원본 코드에서 '.' 제거 후 매핑 우선 적용
-  SELECT REPLACE(CAST(m.source_code AS varchar(200)), '.', '') AS code_nodot,
-         TRY_CONVERT(int, m.concept_id) AS concept_id
+  SELECT
+    m.source_code,
+    m.target_concept_id,
+    m.source_concept_id
   FROM [$(StagingSchema)].condition_vocabulary_map m
   WHERE TRY_CONVERT(int, m.concept_id) IS NOT NULL
 ), op_raw AS (
@@ -116,7 +118,7 @@ END CATCH
 ), final_enriched AS (
   SELECT
     u.person_id,
-    COALESCE(cm.concept_id, 0) AS condition_concept_id,
+    COALESCE(cm.target_concept_id, 0) AS condition_concept_id,
     u.condition_start_date,
     u.condition_start_datetime,
     -- 종료일자는 방문 테이블에서 연결해 가져오기 (없으면 start_date)
@@ -129,10 +131,10 @@ END CATCH
     u.visit_occurrence_id,
     NULL AS visit_detail_id,
     u.condition_source_value,
-    NULL AS condition_source_concept_id,
+    cm.source_concept_id AS condition_source_concept_id,
     NULL AS condition_status_source_value
   FROM unioned u
-  LEFT JOIN cond_map cm ON cm.code_nodot = u.normalized_code
+  LEFT JOIN cond_map cm ON cm.source_code = u.normalized_code
   LEFT JOIN [$(CdmSchema)].visit_occurrence vo ON vo.visit_occurrence_id = u.visit_occurrence_id
 )
 
