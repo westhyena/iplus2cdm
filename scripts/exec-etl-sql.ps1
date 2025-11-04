@@ -186,9 +186,9 @@ $root = Get-RepoRoot
 $defaultSqlRelPaths = @(
   'etl-sql/stg/create_person_id_map.sql',
   'etl-sql/stg/create_visit_occurrence_map.sql',
-  # 'etl-sql/stg/create_condition_vocabulary_map.sql',
+  'etl-sql/stg/create_condition_vocabulary_map.sql',
   'etl-sql/stg/create_measurement_vocabulary_map.sql',
-  # 'etl-sql/stg/create_drug_vocabulary_map.sql',
+  'etl-sql/stg/create_drug_vocabulary_map.sql',
   'etl-sql/stg/create_hira_map.sql',
   # 'etl-sql/stg/create_vocabulary_map.sql',
   'etl-sql/person.sql',
