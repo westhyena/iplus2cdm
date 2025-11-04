@@ -196,6 +196,7 @@ $defaultSqlRelPaths = @(
   'etl-sql/observation_period.sql',
   'etl-sql/drug_exposure.sql',
   'etl-sql/procedure_occurrence.sql',
+  'etl-sql/device_exposure.sql',
   'etl-sql/condition_occurrence.sql',
   'etl-sql/measurement.sql'
 )
