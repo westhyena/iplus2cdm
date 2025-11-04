@@ -16,6 +16,7 @@
   [string]$ConditionMapCsvPath,
   [string]$DrugMapPath,
   [string]$MeasurementMapTsvPath,
+  [string]$HiraMapCsvPath,
   [string]$BcpBin,
   [int]$BcpCodePage
 )
@@ -40,6 +41,7 @@ $defaults = @{
   ConditionMapCsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/condition_map.tsv")
   DrugMapPath    = (Join-Path (Get-RepoRoot) "vocab/mapping/drug_map.tsv")
   MeasurementMapTsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/measurement_map.tsv")
+  HiraMapCsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/hira_map.csv")
   BcpBin         = "bcp"
   BcpCodePage    = 65001
 }
@@ -173,17 +175,22 @@ if (Test-Path $drugModule) { . $drugModule }
 $measModule = Join-Path $root 'scripts/modules/measurement-map.ps1'
 if (Test-Path $measModule) { . $measModule }
 
+# 도메인별 로더 모듈 로드 (hira map)
+$hiraModule = Join-Path $root 'scripts/modules/hira-map.ps1'
+if (Test-Path $hiraModule) { . $hiraModule }
+
 # Resolve SQL files
 $root = Get-RepoRoot
 
 # 기본 실행 목록 (상대경로, 리포지토리 루트 기준)
 $defaultSqlRelPaths = @(
   'etl-sql/stg/create_person_id_map.sql',
-  'etl-sql/stg/create_condition_vocabulary_map.sql',
-  'etl-sql/stg/create_measurement_vocabulary_map.sql',
-  'etl-sql/stg/create_drug_vocabulary_map.sql',
-  'etl-sql/stg/create_vocabulary_map.sql',
   'etl-sql/stg/create_visit_occurrence_map.sql',
+  # 'etl-sql/stg/create_condition_vocabulary_map.sql',
+  'etl-sql/stg/create_measurement_vocabulary_map.sql',
+  # 'etl-sql/stg/create_drug_vocabulary_map.sql',
+  'etl-sql/stg/create_hira_map.sql',
+  # 'etl-sql/stg/create_vocabulary_map.sql',
   'etl-sql/person.sql',
   'etl-sql/visit_occurrence.sql',
   'etl-sql/observation_period.sql',
@@ -241,6 +248,17 @@ foreach ($pathLike in $candidatePaths) {
       }
     } catch {
       throw "measurement_vocabulary_map 적재 실패: $($_.Exception.Message)"
+    }
+  }
+  elseif ($fileName -eq 'create_hira_map.sql') {
+    try {
+      if (Get-Command Invoke-LoadHiraMap -ErrorAction SilentlyContinue) {
+        Invoke-LoadHiraMap -csvPath $cfg.HiraMapCsvPath -stagingSchema $cfg.StagingSchema -sqlcmd $cfg.SqlcmdBin -sqlcmdArgs $sqlcmdArgs -server $cfg.Server -database $cfg.Database -user $cfg.User -password $cfg.Password
+      } else {
+        throw 'Invoke-LoadHiraMap 모듈을 찾지 못했습니다. scripts/modules/hira-map.ps1 로드를 확인하세요.'
+      }
+    } catch {
+      throw "hira_map 적재 실패: $($_.Exception.Message)"
     }
   }
 }
