@@ -99,7 +99,18 @@ function Hira-InvokeBcpImport([string]$server, [string]$database, [string]$user,
 }
 
 function Invoke-LoadHiraMap([string]$csvPath, [string]$stagingSchema, [string]$sqlcmd, [object]$sqlcmdArgs, [string]$server, [string]$database, [string]$user, [string]$password) {
-  if (-not (Test-Path -LiteralPath $csvPath)) { throw "hira_map 파일을 찾지 못했습니다: $csvPath" }
+  if (-not (Test-Path -LiteralPath $csvPath)) {
+    $base = [System.IO.Path]::GetFileNameWithoutExtension($csvPath)
+    $dir  = [System.IO.Path]::GetDirectoryName($csvPath)
+    $candidates = @(
+      (Join-Path $dir ($base + '.tsv')),
+      (Join-Path $dir ($base + '.csv')),
+      (Join-Path $dir 'hira_map.tsv'),
+      (Join-Path $dir 'hira_map.csv')
+    )
+    foreach ($p in $candidates) { if (Test-Path -LiteralPath $p) { $csvPath = $p; break } }
+    if (-not (Test-Path -LiteralPath $csvPath)) { throw "hira_map 파일을 찾지 못했습니다: $csvPath" }
+  }
 
   # 헤더를 보고 구분자/행종결자 결정
   $header = Get-Content -LiteralPath $csvPath -Encoding utf8 -TotalCount 1

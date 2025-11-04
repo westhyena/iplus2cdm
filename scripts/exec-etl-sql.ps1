@@ -41,7 +41,7 @@ $defaults = @{
   ConditionMapCsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/condition_map.tsv")
   DrugMapPath    = (Join-Path (Get-RepoRoot) "vocab/mapping/drug_map.tsv")
   MeasurementMapTsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/measurement_map.tsv")
-  HiraMapCsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/hira_map.csv")
+  HiraMapCsvPath = (Join-Path (Get-RepoRoot) "vocab/mapping/hira_map.tsv")
   BcpBin         = "bcp"
   BcpCodePage    = 65001
 }
