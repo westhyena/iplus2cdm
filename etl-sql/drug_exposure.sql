@@ -57,6 +57,16 @@ END CATCH
     TRY_CONVERT(int, m.source_concept_id) AS source_concept_id
   FROM [$(StagingSchema)].drug_vocabulary_map m
   WHERE TRY_CONVERT(int, m.target_concept_id) IS NOT NULL
+), hira_map AS (
+  -- HIRA 매핑: SOURCE_DOMAIN_ID = 'Drug' 인 경우만 사용, 무효(INVALID_REASON) 제외
+  SELECT
+    UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
+    TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) AS target_concept_id,
+    TRY_CONVERT(int, m.SOURCE_CONCEPT_ID)   AS source_concept_id
+  FROM [$(StagingSchema)].hira_map m
+  WHERE m.SOURCE_DOMAIN_ID = 'Drug'
+    AND m.INVALID_REASON IS NULL
+    AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
 ), op_raw AS (
   -- 외래(OCSSLIP)
   SELECT
@@ -125,7 +135,7 @@ END CATCH
 ), final_enriched AS (
   SELECT
     u.person_id,
-    COALESCE(dm.target_concept_id, 0) AS drug_concept_id,
+    COALESCE(dm.target_concept_id, hm.target_concept_id, 0) AS drug_concept_id,
     u.drug_exposure_start_date,
     u.drug_exposure_start_datetime,
     u.drug_exposure_end_date,
@@ -146,11 +156,12 @@ END CATCH
     u.visit_occurrence_id,
     NULL AS visit_detail_id,
     u.drug_source_value,
-    dm.source_concept_id AS drug_source_concept_id,
+    COALESCE(dm.source_concept_id, hm.source_concept_id) AS drug_source_concept_id,
     NULL AS route_source_value,
     NULL AS dose_unit_source_value
   FROM unioned u
   LEFT JOIN drug_map dm ON dm.code_norm = u.normalized_code
+  LEFT JOIN hira_map hm ON hm.code_norm = u.normalized_code
 )
 
 -- 신규만 삽입
