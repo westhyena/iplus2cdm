@@ -50,13 +50,13 @@ END CATCH
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
 ), hira_proc_map AS (
-  -- HIRA 매핑: SOURCE_DOMAIN_ID = 'Procedure' 인 경우만 사용, 무효 제외
+  -- HIRA 매핑: TARGET_DOMAIN_ID = 'Procedure' 인 경우만 사용, 무효 제외
   SELECT DISTINCT
     UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
     TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) AS target_concept_id,
     TRY_CONVERT(int, m.SOURCE_CONCEPT_ID)   AS source_concept_id
   FROM [$(StagingSchema)].hira_map m
-  WHERE m.SOURCE_DOMAIN_ID = 'Procedure'
+  WHERE m.TARGET_DOMAIN_ID = 'Procedure'
     AND m.INVALID_REASON IS NULL
     AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
 ), proc_code_meta AS (

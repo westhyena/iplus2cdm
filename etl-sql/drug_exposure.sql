@@ -58,13 +58,13 @@ END CATCH
   FROM [$(StagingSchema)].drug_vocabulary_map m
   WHERE TRY_CONVERT(int, m.target_concept_id) IS NOT NULL
 ), hira_map AS (
-  -- HIRA 매핑: SOURCE_DOMAIN_ID = 'Drug' 인 경우만 사용, 무효(INVALID_REASON) 제외
+  -- HIRA 매핑: TARGET_DOMAIN_ID = 'Drug' 인 경우만 사용, 무효(INVALID_REASON) 제외
   SELECT
     UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
     TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) AS target_concept_id,
     TRY_CONVERT(int, m.SOURCE_CONCEPT_ID)   AS source_concept_id
   FROM [$(StagingSchema)].hira_map m
-  WHERE m.SOURCE_DOMAIN_ID = 'Drug'
+  WHERE m.TARGET_DOMAIN_ID = 'Drug'
     AND m.INVALID_REASON IS NULL
     AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
 ), op_raw AS (
