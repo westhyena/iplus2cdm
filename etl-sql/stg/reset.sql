@@ -4,6 +4,8 @@ BEGIN TRY
   DELETE FROM [$(CdmSchema)].[condition_occurrence];
   DELETE FROM [$(CdmSchema)].[drug_exposure];
   DELETE FROM [$(CdmSchema)].[measurement];
+  DELETE FROM [$(CdmSchema)].[device_exposure];
+  DELETE FROM [$(CdmSchema)].[procedure_occurrence];
   DELETE FROM [$(CdmSchema)].[visit_occurrence];
   DELETE FROM [$(CdmSchema)].[observation_period];
   DELETE FROM [$(CdmSchema)].[person];
