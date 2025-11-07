@@ -260,3 +260,194 @@ SELECT m.person_id,
        m.measurement_event_id,
        m.meas_event_field_concept_id
 FROM src_enriched m;
+
+-- 추가: OCSSLIP/OCSSLIPI 기반 측정 변환 (Device/Observation과 동일 패턴)
+;WITH person_map AS (
+  SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
+), visit_map AS (
+  SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
+), hira_measurement_map AS (
+  -- HIRA 매핑: TARGET_DOMAIN_ID = 'Measurement' 인 경우만 사용, 무효 제외
+  SELECT DISTINCT
+    UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
+    TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) AS target_concept_id,
+    TRY_CONVERT(int, m.SOURCE_CONCEPT_ID)   AS source_concept_id
+  FROM [$(StagingSchema)].hira_map m
+  WHERE m.TARGET_DOMAIN_ID = 'Measurement'
+    AND m.INVALID_REASON IS NULL
+    AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
+), meas_code_meta AS (
+  -- 코드 마스터(PICMECHM)에서 코드별 보험/수익 분류 보조 정보 (9999 임시값)
+  SELECT DISTINCT
+    UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) AS code_norm,
+    TRY_CONVERT(int, p.[보험분류]) AS 보험분류,
+    TRY_CONVERT(int, p.[수익분류]) AS 수익분류
+  FROM [$(SrcSchema)].[PICMECHM] p
+  WHERE (
+    TRY_CONVERT(int, p.[보험분류]) IN (9999)
+    OR TRY_CONVERT(int, p.[수익분류]) IN (9999)
+  )
+), op_raw AS (
+  -- 외래(OCSSLIP) 원본
+  SELECT
+    o.PTNTIDNO,
+    o.[진료일자] AS svc_date,
+    o.[청구코드] AS claim_code
+  FROM [$(SrcSchema)].[OCSSLIP] o
+  WHERE o.PTNTIDNO IS NOT NULL
+    AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
+), ip_raw AS (
+  -- 입원(OCSSLIPI) 원본
+  SELECT
+    i.PTNTIDNO,
+    i.[진료일자] AS svc_date,
+    i.[청구코드] AS claim_code
+  FROM [$(SrcSchema)].[OCSSLIPI] i
+  WHERE i.PTNTIDNO IS NOT NULL
+    AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
+), op_filtered AS (
+  -- 후보 선별: HIRA(Measurement) 매핑 또는 PICMECHM 9999 분류 포함
+  SELECT r.*
+  FROM op_raw r
+  WHERE 
+    EXISTS (
+      SELECT 1 FROM hira_measurement_map hm 
+      WHERE hm.code_norm = UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200)))))
+    )
+    OR EXISTS (
+      SELECT 1 FROM meas_code_meta pm
+      WHERE pm.code_norm = UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200)))))
+    )
+), ip_filtered AS (
+  SELECT r.*
+  FROM ip_raw r
+  WHERE 
+    EXISTS (
+      SELECT 1 FROM hira_measurement_map hm 
+      WHERE hm.code_norm = UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200)))))
+    )
+    OR EXISTS (
+      SELECT 1 FROM meas_code_meta pm
+      WHERE pm.code_norm = UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200)))))
+    )
+), op_enriched AS (
+  SELECT
+    pm.person_id,
+    vm.visit_occurrence_id,
+    TRY_CONVERT(date, r.svc_date) AS measurement_date,
+    NULL AS measurement_datetime,
+    NULL AS measurement_time,
+    32817 AS measurement_type_concept_id,
+    NULL AS operator_concept_id,
+    NULL AS value_as_number,
+    NULL AS value_as_concept_id,
+    NULL AS unit_concept_id,
+    NULL AS range_low,
+    NULL AS range_high,
+    NULL AS provider_id,
+    NULL AS visit_detail_id,
+    CAST(r.claim_code AS varchar(50)) AS measurement_source_value,
+    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code
+  FROM op_filtered r
+  JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
+  LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'OP'
+), ip_enriched AS (
+  SELECT
+    pm.person_id,
+    vm.visit_occurrence_id,
+    TRY_CONVERT(date, r.svc_date) AS measurement_date,
+    NULL AS measurement_datetime,
+    NULL AS measurement_time,
+    32817 AS measurement_type_concept_id,
+    NULL AS operator_concept_id,
+    NULL AS value_as_number,
+    NULL AS value_as_concept_id,
+    NULL AS unit_concept_id,
+    NULL AS range_low,
+    NULL AS range_high,
+    NULL AS provider_id,
+    NULL AS visit_detail_id,
+    CAST(r.claim_code AS varchar(50)) AS measurement_source_value,
+    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code
+  FROM ip_filtered r
+  JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
+  LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'IP'
+), unioned AS (
+  SELECT * FROM op_enriched
+  UNION ALL
+  SELECT * FROM ip_enriched
+), final_enriched AS (
+  SELECT
+    u.person_id,
+    COALESCE(hm.target_concept_id, 0) AS measurement_concept_id,
+    u.measurement_date,
+    u.measurement_datetime,
+    u.measurement_time,
+    u.measurement_type_concept_id,
+    u.operator_concept_id,
+    NULL AS value_as_number,
+    NULL AS value_as_concept_id,
+    NULL AS unit_concept_id,
+    NULL AS range_low,
+    NULL AS range_high,
+    NULL AS provider_id,
+    u.visit_occurrence_id,
+    NULL AS visit_detail_id,
+    u.measurement_source_value,
+    hm.source_concept_id AS measurement_source_concept_id,
+    NULL AS unit_source_value,
+    NULL AS unit_source_concept_id,
+    NULL AS value_source_value,
+    NULL AS measurement_event_id,
+    NULL AS meas_event_field_concept_id
+  FROM unioned u
+  LEFT JOIN hira_measurement_map hm ON hm.code_norm = u.normalized_code
+)
+
+INSERT INTO [$(CdmSchema)].[measurement](
+  person_id,
+  measurement_concept_id,
+  measurement_date,
+  measurement_datetime,
+  measurement_time,
+  measurement_type_concept_id,
+  operator_concept_id,
+  value_as_number,
+  value_as_concept_id,
+  unit_concept_id,
+  range_low,
+  range_high,
+  provider_id,
+  visit_occurrence_id,
+  visit_detail_id,
+  measurement_source_value,
+  measurement_source_concept_id,
+  unit_source_value,
+  unit_source_concept_id,
+  value_source_value,
+  measurement_event_id,
+  meas_event_field_concept_id
+)
+SELECT v.person_id,
+       v.measurement_concept_id,
+       v.measurement_date,
+       v.measurement_datetime,
+       v.measurement_time,
+       v.measurement_type_concept_id,
+       v.operator_concept_id,
+       v.value_as_number,
+       v.value_as_concept_id,
+       v.unit_concept_id,
+       v.range_low,
+       v.range_high,
+       v.provider_id,
+       v.visit_occurrence_id,
+       v.visit_detail_id,
+       v.measurement_source_value,
+       v.measurement_source_concept_id,
+       v.unit_source_value,
+       v.unit_source_concept_id,
+       v.value_source_value,
+       v.measurement_event_id,
+       v.meas_event_field_concept_id
+FROM final_enriched v;
