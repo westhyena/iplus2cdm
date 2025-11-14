@@ -70,6 +70,7 @@ END CATCH
     TRY_CONVERT(int, p.[보험분류]) IN (9999)
     OR TRY_CONVERT(int, p.[수익분류]) IN (9999)
   )
+  AND TRY_CONVERT(int, p.[수가분류]) <> 3
 ), op_raw AS (
   -- 외래(OCSSLIP) 원본
   SELECT
