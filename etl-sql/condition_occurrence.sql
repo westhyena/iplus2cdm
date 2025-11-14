@@ -61,7 +61,8 @@ END CATCH
     o.PTNTIDNO,
     o.[진료일자],
     o.[상병구분],
-    o.[상병코드]
+    o.[상병코드],
+    o.row_i AS row_i
   FROM  [$(SrcSchema)].[OCSDISE] o
   WHERE o.PTNTIDNO IS NOT NULL
     AND ISNULL(o.[RO상병],'0') <> '1'
@@ -73,7 +74,8 @@ END CATCH
     i.PTNTIDNO,
     i.[진료일자],
     i.[상병구분],
-    i.[상병코드]
+    i.[상병코드],
+    i.row_i AS row_i
   FROM  [$(SrcSchema)].[OCSDISEI] i
   WHERE i.PTNTIDNO IS NOT NULL
     AND ISNULL(i.[RO상병],'0') <> '1'
@@ -88,8 +90,8 @@ END CATCH
     NULL AS condition_start_datetime,
     -- 종료일자: 방문 종료일 사용 (시간 없음)
     NULL AS condition_end_datetime,
-    -- 상태: 상병구분 = '1'이면 Secondary, 그 외 Primary
-    CASE WHEN NULLIF(LTRIM(RTRIM(r.[상병구분])),'') = '1' THEN 32908 ELSE 32902 END AS condition_status_concept_id,
+    -- 상태: row_i = 0 이면 주상병(32902), 그 외 부상병(32908)
+    CASE WHEN TRY_CONVERT(int, r.row_i) = 0 THEN 32902 ELSE 32908 END AS condition_status_concept_id,
     CAST(r.[상병코드] AS varchar(50)) AS condition_source_value,
     REPLACE(CAST(r.[상병코드] AS varchar(200)),'.','') AS normalized_code,
     'OP' AS src
@@ -103,7 +105,7 @@ END CATCH
     TRY_CONVERT(date, r.[진료일자]) AS condition_start_date,
     NULL AS condition_start_datetime,
     NULL AS condition_end_datetime,
-    CASE WHEN NULLIF(LTRIM(RTRIM(r.[상병구분])),'') = '1' THEN 32908 ELSE 32902 END AS condition_status_concept_id,
+    CASE WHEN TRY_CONVERT(int, r.row_i) = 0 THEN 32902 ELSE 32908 END AS condition_status_concept_id,
     CAST(r.[상병코드] AS varchar(50)) AS condition_source_value,
     REPLACE(CAST(r.[상병코드] AS varchar(200)),'.','') AS normalized_code,
     'IP' AS src
