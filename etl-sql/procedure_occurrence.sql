@@ -44,11 +44,94 @@ BEGIN CATCH
   THROW;
 END CATCH
 
+-- 소스키 매핑(procedure_occurrence_map) 신규 추가
+;WITH src_keys AS (
+  SELECT 
+    o.PTNTIDNO AS ptntidno,
+    REPLACE(o.[진료일자], '-', '') AS [date],
+    'OP' AS [source],
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no
+  FROM  [$(SrcSchema)].[OCSSLIP] o
+  WHERE o.PTNTIDNO IS NOT NULL
+    AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
+    AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) IS NOT NULL
+    AND (
+      EXISTS (
+        SELECT 1
+        FROM [$(StagingSchema)].hira_map hm
+        WHERE hm.TARGET_DOMAIN_ID = 'Procedure'
+          AND hm.INVALID_REASON IS NULL
+          AND UPPER(LTRIM(RTRIM(CAST(hm.LOCAL_CD1 AS varchar(200))))) = UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200)))))
+          AND TRY_CONVERT(int, hm.TARGET_CONCEPT_ID_1) IS NOT NULL
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM [$(SrcSchema)].[PICMECHM] p
+        WHERE UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) = UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200)))))
+          AND (
+            TRY_CONVERT(int, p.[보험분류]) IN (26,27)
+            OR TRY_CONVERT(int, p.[수익분류]) IN (9,10)
+          )
+          AND TRY_CONVERT(int, p.[수가분류]) <> 3
+      )
+    )
+  UNION
+  SELECT
+    i.PTNTIDNO,
+    REPLACE(i.[진료일자], '-', '') AS [date],
+    'IP' AS [source],
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no
+  FROM  [$(SrcSchema)].[OCSSLIPI] i
+  WHERE i.PTNTIDNO IS NOT NULL
+    AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
+    AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) IS NOT NULL
+    AND (
+      EXISTS (
+        SELECT 1
+        FROM [$(StagingSchema)].hira_map hm
+        WHERE hm.TARGET_DOMAIN_ID = 'Procedure'
+          AND hm.INVALID_REASON IS NULL
+          AND UPPER(LTRIM(RTRIM(CAST(hm.LOCAL_CD1 AS varchar(200))))) = UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200)))))
+          AND TRY_CONVERT(int, hm.TARGET_CONCEPT_ID_1) IS NOT NULL
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM [$(SrcSchema)].[PICMECHM] p
+        WHERE UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) = UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200)))))
+          AND (
+            TRY_CONVERT(int, p.[보험분류]) IN (26,27)
+            OR TRY_CONVERT(int, p.[수익분류]) IN (9,10)
+          )
+          AND TRY_CONVERT(int, p.[수가분류]) <> 3
+      )
+    )
+)
+INSERT INTO  [$(StagingSchema)].procedure_occurrence_map (
+    ptntidno, [date], [source], order_no, procedure_occurrence_id)
+SELECT k.ptntidno,
+       k.[date],
+       k.[source],
+       k.order_no,
+       x.base_id + ROW_NUMBER() OVER (ORDER BY k.[date], k.order_no)
+FROM src_keys k
+CROSS JOIN (
+  SELECT ISNULL(MAX(procedure_occurrence_id),0) AS base_id
+  FROM   [$(StagingSchema)].procedure_occurrence_map
+) x
+LEFT JOIN [$(StagingSchema)].procedure_occurrence_map m
+  ON  m.ptntidno = k.ptntidno
+  AND m.[date] = k.[date]
+  AND m.[source] = k.[source]
+  AND m.order_no = k.order_no
+WHERE m.ptntidno IS NULL;
+
 -- 공통/소스 CTE
 ;WITH person_map AS (
   SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
+), keys_map AS (
+  SELECT ptntidno, [date], [source], order_no, procedure_occurrence_id FROM [$(StagingSchema)].procedure_occurrence_map
 ), hira_proc_map AS (
   -- HIRA 매핑: TARGET_DOMAIN_ID = 'Procedure' 인 경우만 사용, 무효 제외
   SELECT DISTINCT
@@ -76,6 +159,7 @@ END CATCH
   SELECT
     o.PTNTIDNO,
     o.[진료일자] AS svc_date,
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no,
     o.[청구코드] AS claim_code
   FROM [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
@@ -85,6 +169,7 @@ END CATCH
   SELECT
     i.PTNTIDNO,
     i.[진료일자] AS svc_date,
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no,
     i.[청구코드] AS claim_code
   FROM [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
@@ -116,6 +201,7 @@ END CATCH
     )
 ), op_enriched AS (
   SELECT
+    km.procedure_occurrence_id,
     pm.person_id,
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS procedure_date,
@@ -126,8 +212,10 @@ END CATCH
   FROM op_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'OP'
+  LEFT JOIN keys_map km ON km.ptntidno = r.PTNTIDNO AND km.[date] = REPLACE(r.svc_date, '-', '') AND km.[source] = 'OP' AND km.order_no = r.order_no
 ), ip_enriched AS (
   SELECT
+    km.procedure_occurrence_id,
     pm.person_id,
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS procedure_date,
@@ -138,12 +226,14 @@ END CATCH
   FROM ip_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'IP'
+  LEFT JOIN keys_map km ON km.ptntidno = r.PTNTIDNO AND km.[date] = REPLACE(r.svc_date, '-', '') AND km.[source] = 'IP' AND km.order_no = r.order_no
 ), unioned AS (
   SELECT * FROM op_enriched
   UNION ALL
   SELECT * FROM ip_enriched
 ), final_enriched AS (
   SELECT
+    u.procedure_occurrence_id,
     u.person_id,
     COALESCE(hm.target_concept_id, 0) AS procedure_concept_id,
     u.procedure_date,
@@ -163,6 +253,7 @@ END CATCH
 
 -- 신규만 삽입 (ID는 DEFAULT 제약으로 시퀀스 사용)
 INSERT INTO [$(CdmSchema)].[procedure_occurrence] (
+  procedure_occurrence_id,
   person_id,
   procedure_concept_id,
   procedure_date,
@@ -177,7 +268,8 @@ INSERT INTO [$(CdmSchema)].[procedure_occurrence] (
   procedure_source_concept_id,
   modifier_source_value
 )
-SELECT v.person_id,
+SELECT v.procedure_occurrence_id,
+       v.person_id,
        v.procedure_concept_id,
        v.procedure_date,
        v.procedure_datetime,
@@ -190,7 +282,10 @@ SELECT v.person_id,
        v.procedure_source_value,
        v.procedure_source_concept_id,
        v.modifier_source_value
-FROM final_enriched v;
+FROM final_enriched v
+WHERE NOT EXISTS (
+  SELECT 1 FROM [$(CdmSchema)].[procedure_occurrence] t WHERE t.procedure_occurrence_id = v.procedure_occurrence_id
+);
 
 
 

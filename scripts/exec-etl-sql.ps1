@@ -147,6 +147,10 @@ if ($FullReload) {
     $resetMapsSql = @"
 IF OBJECT_ID('$($cfg.StagingSchema).person_id_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[person_id_map];
 IF OBJECT_ID('$($cfg.StagingSchema).visit_occurrence_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[visit_occurrence_map];
+IF OBJECT_ID('$($cfg.StagingSchema).drug_exposure_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[drug_exposure_map];
+IF OBJECT_ID('$($cfg.StagingSchema).device_exposure_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[device_exposure_map];
+IF OBJECT_ID('$($cfg.StagingSchema).procedure_occurrence_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[procedure_occurrence_map];
+IF OBJECT_ID('$($cfg.StagingSchema).observation_map','U') IS NOT NULL TRUNCATE TABLE [$($cfg.StagingSchema)].[observation_map];
 "@
     & $cfg.SqlcmdBin @sqlcmdArgs -Q $resetMapsSql
     $purgeElapsed = (Get-Date) - $purgeStart
@@ -186,6 +190,10 @@ $root = Get-RepoRoot
 $defaultSqlRelPaths = @(
   'etl-sql/stg/create_person_id_map.sql',
   'etl-sql/stg/create_visit_occurrence_map.sql',
+  'etl-sql/stg/create_drug_exposure_map.sql',
+  'etl-sql/stg/create_device_exposure_map.sql',
+  'etl-sql/stg/create_procedure_occurrence_map.sql',
+  'etl-sql/stg/create_observation_map.sql',
   'etl-sql/stg/create_condition_vocabulary_map.sql',
   'etl-sql/stg/create_measurement_vocabulary_map.sql',
   'etl-sql/stg/create_drug_vocabulary_map.sql',

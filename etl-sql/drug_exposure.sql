@@ -44,11 +44,56 @@ BEGIN CATCH
   THROW;
 END CATCH
 
+-- 소스키 매핑(drug_exposure_map) 신규 추가
+;WITH src_keys AS (
+  SELECT 
+    o.PTNTIDNO AS ptntidno,
+    REPLACE(o.[진료일자], '-', '') AS [date],
+    'OP' AS [source],
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no
+  FROM  [$(SrcSchema)].[OCSSLIP] o
+  WHERE o.PTNTIDNO IS NOT NULL
+    AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
+    AND o.[수가분류] = 3
+    AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) IS NOT NULL
+  UNION
+  SELECT
+    i.PTNTIDNO,
+    REPLACE(i.[진료일자], '-', '') AS [date],
+    'IP' AS [source],
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no
+  FROM  [$(SrcSchema)].[OCSSLIPI] i
+  WHERE i.PTNTIDNO IS NOT NULL
+    AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
+    AND i.[수가분류] = 3
+    AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) IS NOT NULL
+)
+INSERT INTO  [$(StagingSchema)].drug_exposure_map (
+    ptntidno, [date], [source], order_no, drug_exposure_id)
+SELECT k.ptntidno,
+       k.[date],
+       k.[source],
+       k.order_no,
+       x.base_id + ROW_NUMBER() OVER (ORDER BY k.[date], k.order_no)
+FROM src_keys k
+CROSS JOIN (
+  SELECT ISNULL(MAX(drug_exposure_id),0) AS base_id
+  FROM   [$(StagingSchema)].drug_exposure_map
+) x
+LEFT JOIN [$(StagingSchema)].drug_exposure_map m
+  ON  m.ptntidno = k.ptntidno
+  AND m.[date] = k.[date]
+  AND m.[source] = k.[source]
+  AND m.order_no = k.order_no
+WHERE m.ptntidno IS NULL;
+
 -- 공통 맵/소스 CTE
 ;WITH person_map AS (
   SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
+), keys_map AS (
+  SELECT ptntidno, [date], [source], order_no, drug_exposure_id FROM [$(StagingSchema)].drug_exposure_map
 ), drug_map AS (
   -- 사용자 제공 매핑: 청구코드 정규화 후 매핑
   SELECT
@@ -72,6 +117,7 @@ END CATCH
   SELECT
     o.PTNTIDNO,
     o.[진료일자]           AS svc_date,
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no,
     o.[청구코드]           AS claim_code,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[투여일수])),'')) AS days_supply,
     TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(o.[투여량])),''))  AS dose_amount,
@@ -85,6 +131,7 @@ END CATCH
   SELECT
     i.PTNTIDNO,
     i.[진료일자]           AS svc_date,
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no,
     i.[청구코드]           AS claim_code,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[투여일수])),'')) AS days_supply,
     TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(i.[투여량])),''))  AS dose_amount,
@@ -95,6 +142,7 @@ END CATCH
     AND i.[수가분류] = 3
 ), op_enriched AS (
   SELECT
+    km.drug_exposure_id,
     pm.person_id,
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS drug_exposure_start_date,
@@ -111,8 +159,10 @@ END CATCH
   FROM op_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map  vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'OP'
+  LEFT JOIN keys_map  km ON km.ptntidno = r.PTNTIDNO AND km.[date] = REPLACE(r.svc_date, '-', '') AND km.[source] = 'OP' AND km.order_no = r.order_no
 ), ip_enriched AS (
   SELECT
+    km.drug_exposure_id,
     pm.person_id,
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS drug_exposure_start_date,
@@ -128,12 +178,14 @@ END CATCH
   FROM ip_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map  vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'IP'
+  LEFT JOIN keys_map  km ON km.ptntidno = r.PTNTIDNO AND km.[date] = REPLACE(r.svc_date, '-', '') AND km.[source] = 'IP' AND km.order_no = r.order_no
 ), unioned AS (
   SELECT * FROM op_enriched
   UNION ALL
   SELECT * FROM ip_enriched
 ), final_enriched AS (
   SELECT
+    u.drug_exposure_id,
     u.person_id,
     COALESCE(dm.target_concept_id, hm.target_concept_id, 0) AS drug_concept_id,
     u.drug_exposure_start_date,
@@ -166,6 +218,7 @@ END CATCH
 
 -- 신규만 삽입
 INSERT INTO [$(CdmSchema)].[drug_exposure](
+  drug_exposure_id,
   person_id,
   drug_concept_id,
   drug_exposure_start_date,
@@ -189,7 +242,8 @@ INSERT INTO [$(CdmSchema)].[drug_exposure](
   route_source_value,
   dose_unit_source_value
 )
-SELECT v.person_id,
+SELECT v.drug_exposure_id,
+       v.person_id,
        v.drug_concept_id,
        v.drug_exposure_start_date,
        v.drug_exposure_start_datetime,
@@ -211,7 +265,10 @@ SELECT v.person_id,
        v.drug_source_concept_id,
        v.route_source_value,
        v.dose_unit_source_value
-FROM final_enriched v;
+FROM final_enriched v
+WHERE NOT EXISTS (
+  SELECT 1 FROM [$(CdmSchema)].[drug_exposure] t WHERE t.drug_exposure_id = v.drug_exposure_id
+);
 
 
 
