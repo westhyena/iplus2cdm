@@ -45,7 +45,25 @@ BEGIN CATCH
 END CATCH
 
 -- 소스키 매핑(procedure_occurrence_map) 신규 추가
-;WITH src_keys AS (
+;WITH hira_proc_rows AS (
+  SELECT DISTINCT
+    UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
+    TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) AS target_concept_id,
+    TRY_CONVERT(int, m.SOURCE_CONCEPT_ID)   AS source_concept_id
+  FROM [$(StagingSchema)].hira_map m
+  WHERE m.TARGET_DOMAIN_ID = 'Procedure'
+    AND m.INVALID_REASON IS NULL
+    AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
+), proc_code_meta_src AS (
+  SELECT DISTINCT
+    UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) AS code_norm
+  FROM [$(SrcSchema)].[PICMECHM] p
+  WHERE (
+    TRY_CONVERT(int, p.[보험분류]) IN (26,27)
+    OR TRY_CONVERT(int, p.[수익분류]) IN (9,10)
+  )
+  AND TRY_CONVERT(int, p.[수가분류]) <> 3
+), src_keys AS (
   SELECT 
     o.PTNTIDNO AS ptntidno,
     REPLACE(o.[진료일자], '-', '') AS [date],
@@ -59,24 +77,8 @@ END CATCH
     AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),'')) IS NOT NULL
     AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) IS NOT NULL
     AND (
-      EXISTS (
-        SELECT 1
-        FROM [$(StagingSchema)].hira_map hm
-        WHERE hm.TARGET_DOMAIN_ID = 'Procedure'
-          AND hm.INVALID_REASON IS NULL
-          AND UPPER(LTRIM(RTRIM(CAST(hm.LOCAL_CD1 AS varchar(200))))) = UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200)))))
-          AND TRY_CONVERT(int, hm.TARGET_CONCEPT_ID_1) IS NOT NULL
-      )
-      OR EXISTS (
-        SELECT 1
-        FROM [$(SrcSchema)].[PICMECHM] p
-        WHERE UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) = UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200)))))
-          AND (
-            TRY_CONVERT(int, p.[보험분류]) IN (26,27)
-            OR TRY_CONVERT(int, p.[수익분류]) IN (9,10)
-          )
-          AND TRY_CONVERT(int, p.[수가분류]) <> 3
-      )
+      EXISTS (SELECT 1 FROM hira_proc_rows hm WHERE hm.code_norm = UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200))))))
+      OR EXISTS (SELECT 1 FROM proc_code_meta_src pm WHERE pm.code_norm = UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200))))))
     )
   UNION
   SELECT
@@ -91,41 +93,18 @@ END CATCH
     AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
     AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) IS NOT NULL
     AND (
-      EXISTS (
-        SELECT 1
-        FROM [$(StagingSchema)].hira_map hm
-        WHERE hm.TARGET_DOMAIN_ID = 'Procedure'
-          AND hm.INVALID_REASON IS NULL
-          AND UPPER(LTRIM(RTRIM(CAST(hm.LOCAL_CD1 AS varchar(200))))) = UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200)))))
-          AND TRY_CONVERT(int, hm.TARGET_CONCEPT_ID_1) IS NOT NULL
-      )
-      OR EXISTS (
-        SELECT 1
-        FROM [$(SrcSchema)].[PICMECHM] p
-        WHERE UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) = UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200)))))
-          AND (
-            TRY_CONVERT(int, p.[보험분류]) IN (26,27)
-            OR TRY_CONVERT(int, p.[수익분류]) IN (9,10)
-          )
-          AND TRY_CONVERT(int, p.[수가분류]) <> 3
-      )
+      EXISTS (SELECT 1 FROM hira_proc_rows hm WHERE hm.code_norm = UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200))))))
+      OR EXISTS (SELECT 1 FROM proc_code_meta_src pm WHERE pm.code_norm = UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200))))))
     )
-), hira_proc_codes AS (
-  SELECT DISTINCT
-    UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm
-  FROM [$(StagingSchema)].hira_map m
-  WHERE m.TARGET_DOMAIN_ID = 'Procedure'
-    AND m.INVALID_REASON IS NULL
-    AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
 ), src_mapped AS (
   SELECT 
     s.ptntidno, s.[date], s.[source], s.serial_no, s.order_no,
     ROW_NUMBER() OVER (
       PARTITION BY s.ptntidno, s.[date], s.[source], s.serial_no, s.order_no
-      ORDER BY (CASE WHEN c.code_norm IS NULL THEN 1 ELSE 0 END), s.claim_code_norm
+      ORDER BY COALESCE(hm.target_concept_id, 0), COALESCE(hm.source_concept_id, 0)
     ) AS map_index
   FROM src_keys s
-  LEFT JOIN hira_proc_codes c ON c.code_norm = s.claim_code_norm
+  LEFT JOIN hira_proc_rows hm ON hm.code_norm = s.claim_code_norm
 )
 INSERT INTO  [$(StagingSchema)].procedure_occurrence_map (
     ptntidno, [date], [source], serial_no, order_no, map_index, procedure_occurrence_id)
