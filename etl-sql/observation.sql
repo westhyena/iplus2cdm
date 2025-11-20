@@ -50,10 +50,12 @@ END CATCH
     o.PTNTIDNO AS ptntidno,
     REPLACE(o.[진료일자], '-', '') AS [date],
     'OP' AS [source],
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),'')) AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no
   FROM  [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
+    AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),'')) IS NOT NULL
     AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) IS NOT NULL
     AND (
       EXISTS (
@@ -80,6 +82,7 @@ END CATCH
     i.PTNTIDNO,
     REPLACE(i.[진료일자], '-', '') AS [date],
     'IP' AS [source],
+    0 AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no
   FROM  [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
@@ -107,10 +110,11 @@ END CATCH
     )
 )
 INSERT INTO  [$(StagingSchema)].observation_map (
-    ptntidno, [date], [source], order_no, observation_id)
+    ptntidno, [date], [source], serial_no, order_no, observation_id)
 SELECT k.ptntidno,
        k.[date],
        k.[source],
+       k.serial_no,
        k.order_no,
        x.base_id + ROW_NUMBER() OVER (ORDER BY k.[date], k.order_no)
 FROM src_keys k
@@ -122,6 +126,7 @@ LEFT JOIN [$(StagingSchema)].observation_map m
   ON  m.ptntidno = k.ptntidno
   AND m.[date] = k.[date]
   AND m.[source] = k.[source]
+  AND m.serial_no = k.serial_no
   AND m.order_no = k.order_no
 WHERE m.ptntidno IS NULL;
 
@@ -131,7 +136,7 @@ WHERE m.ptntidno IS NULL;
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
 ), keys_map AS (
-  SELECT ptntidno, [date], [source], order_no, observation_id FROM [$(StagingSchema)].observation_map
+  SELECT ptntidno, [date], [source], serial_no, order_no, observation_id FROM [$(StagingSchema)].observation_map
 ), hira_observation_map AS (
   -- HIRA 매핑: TARGET_DOMAIN_ID = 'Observation' 인 경우만 사용, 무효 제외
   SELECT DISTINCT
@@ -159,6 +164,7 @@ WHERE m.ptntidno IS NULL;
   SELECT
     o.PTNTIDNO,
     o.[진료일자] AS svc_date,
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),'')) AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no,
     o.[청구코드] AS claim_code
   FROM [$(SrcSchema)].[OCSSLIP] o
@@ -169,6 +175,7 @@ WHERE m.ptntidno IS NULL;
   SELECT
     i.PTNTIDNO,
     i.[진료일자] AS svc_date,
+    0 AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no,
     i.[청구코드] AS claim_code
   FROM [$(SrcSchema)].[OCSSLIPI] i
@@ -212,7 +219,12 @@ WHERE m.ptntidno IS NULL;
   FROM op_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'OP'
-  LEFT JOIN keys_map km ON km.ptntidno = r.PTNTIDNO AND km.[date] = REPLACE(r.svc_date, '-', '') AND km.[source] = 'OP' AND km.order_no = r.order_no
+  LEFT JOIN keys_map km 
+    ON km.ptntidno = r.PTNTIDNO 
+   AND km.[date] = REPLACE(r.svc_date, '-', '') 
+   AND km.[source] = 'OP' 
+   AND km.serial_no = r.serial_no
+   AND km.order_no = r.order_no
 ), ip_enriched AS (
   SELECT
     km.observation_id,
@@ -226,7 +238,12 @@ WHERE m.ptntidno IS NULL;
   FROM ip_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'IP'
-  LEFT JOIN keys_map km ON km.ptntidno = r.PTNTIDNO AND km.[date] = REPLACE(r.svc_date, '-', '') AND km.[source] = 'IP' AND km.order_no = r.order_no
+  LEFT JOIN keys_map km 
+    ON km.ptntidno = r.PTNTIDNO 
+   AND km.[date] = REPLACE(r.svc_date, '-', '') 
+   AND km.[source] = 'IP' 
+   AND km.serial_no = 0
+   AND km.order_no = r.order_no
 ), unioned AS (
   SELECT * FROM op_enriched
   UNION ALL
