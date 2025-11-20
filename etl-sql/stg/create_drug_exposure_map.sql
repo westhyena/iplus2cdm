@@ -13,8 +13,9 @@ BEGIN
     [source] varchar(2) NOT NULL,
     serial_no int NOT NULL,
     order_no int NOT NULL,
+    map_index int NOT NULL,
     drug_exposure_id int NOT NULL UNIQUE,
-    CONSTRAINT PK_drug_exposure_map PRIMARY KEY (ptntidno, [date], [source], serial_no, order_no)
+    CONSTRAINT PK_drug_exposure_map PRIMARY KEY (ptntidno, [date], [source], serial_no, order_no, map_index)
   );
 END;
 
@@ -38,6 +39,18 @@ BEGIN
       ADD serial_no int NOT NULL CONSTRAINT DF_drug_exposure_map_serial DEFAULT (0) WITH VALUES;
   END;
 
+  -- map_index 컬럼 없으면 추가 (기본 1)
+  IF NOT EXISTS (
+    SELECT 1 FROM sys.columns c
+    JOIN sys.tables t ON t.object_id = c.object_id
+    JOIN sys.schemas s ON s.schema_id = t.schema_id
+    WHERE s.name = '$(StagingSchema)' AND t.name = 'drug_exposure_map' AND c.name = 'map_index'
+  )
+  BEGIN
+    ALTER TABLE [$(StagingSchema)].drug_exposure_map
+      ADD map_index int NOT NULL CONSTRAINT DF_drug_exposure_map_mapindex DEFAULT (1) WITH VALUES;
+  END;
+
   -- PK를 (ptntidno,date,source,serial_no,order_no)로 재정의
   IF EXISTS (
     SELECT 1 FROM sys.key_constraints kc
@@ -50,7 +63,7 @@ BEGIN
     ALTER TABLE [$(StagingSchema)].drug_exposure_map DROP CONSTRAINT PK_drug_exposure_map;
   END;
   ALTER TABLE [$(StagingSchema)].drug_exposure_map
-    ADD CONSTRAINT PK_drug_exposure_map PRIMARY KEY (ptntidno, [date], [source], serial_no, order_no);
+    ADD CONSTRAINT PK_drug_exposure_map PRIMARY KEY (ptntidno, [date], [source], serial_no, order_no, map_index);
 END;
 
 

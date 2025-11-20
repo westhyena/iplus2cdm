@@ -51,7 +51,8 @@ END CATCH
     REPLACE(o.[진료일자], '-', '') AS [date],
     'OP' AS [source],
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),'')) AS serial_no,
-    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no,
+    UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200))))) AS claim_code_norm
   FROM  [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
@@ -83,7 +84,8 @@ END CATCH
     REPLACE(i.[진료일자], '-', '') AS [date],
     'IP' AS [source],
     0 AS serial_no,
-    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no,
+    UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200))))) AS claim_code_norm
   FROM  [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
@@ -108,16 +110,33 @@ END CATCH
           AND TRY_CONVERT(int, p.[수가분류]) <> 3
       )
     )
+), hira_obs_codes AS (
+  SELECT DISTINCT
+    UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm
+  FROM [$(StagingSchema)].hira_map m
+  WHERE m.TARGET_DOMAIN_ID = 'Observation'
+    AND m.INVALID_REASON IS NULL
+    AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
+), src_mapped AS (
+  SELECT 
+    s.ptntidno, s.[date], s.[source], s.serial_no, s.order_no,
+    ROW_NUMBER() OVER (
+      PARTITION BY s.ptntidno, s.[date], s.[source], s.serial_no, s.order_no
+      ORDER BY (CASE WHEN c.code_norm IS NULL THEN 1 ELSE 0 END), s.claim_code_norm
+    ) AS map_index
+  FROM src_keys s
+  LEFT JOIN hira_obs_codes c ON c.code_norm = s.claim_code_norm
 )
 INSERT INTO  [$(StagingSchema)].observation_map (
-    ptntidno, [date], [source], serial_no, order_no, observation_id)
+    ptntidno, [date], [source], serial_no, order_no, map_index, observation_id)
 SELECT k.ptntidno,
        k.[date],
        k.[source],
        k.serial_no,
        k.order_no,
-       x.base_id + ROW_NUMBER() OVER (ORDER BY k.[date], k.order_no)
-FROM src_keys k
+       k.map_index,
+       x.base_id + ROW_NUMBER() OVER (ORDER BY k.[date], k.order_no, k.map_index)
+FROM src_mapped k
 CROSS JOIN (
   SELECT ISNULL(MAX(observation_id),0) AS base_id
   FROM   [$(StagingSchema)].observation_map
@@ -128,6 +147,7 @@ LEFT JOIN [$(StagingSchema)].observation_map m
   AND m.[source] = k.[source]
   AND m.serial_no = k.serial_no
   AND m.order_no = k.order_no
+  AND m.map_index = k.map_index
 WHERE m.ptntidno IS NULL;
 
 -- 공통/소스 CTE
@@ -136,7 +156,7 @@ WHERE m.ptntidno IS NULL;
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
 ), keys_map AS (
-  SELECT ptntidno, [date], [source], serial_no, order_no, observation_id FROM [$(StagingSchema)].observation_map
+  SELECT ptntidno, [date], [source], serial_no, order_no, map_index, observation_id FROM [$(StagingSchema)].observation_map
 ), hira_observation_map AS (
   -- HIRA 매핑: TARGET_DOMAIN_ID = 'Observation' 인 경우만 사용, 무효 제외
   SELECT DISTINCT
@@ -208,7 +228,11 @@ WHERE m.ptntidno IS NULL;
     )
 ), op_enriched AS (
   SELECT
-    km.observation_id,
+    r.PTNTIDNO AS k_ptntidno,
+    REPLACE(r.svc_date, '-', '') AS k_date,
+    'OP' AS k_source,
+    r.serial_no AS k_serial_no,
+    r.order_no AS k_order_no,
     pm.person_id,
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS observation_date,
@@ -219,15 +243,13 @@ WHERE m.ptntidno IS NULL;
   FROM op_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'OP'
-  LEFT JOIN keys_map km 
-    ON km.ptntidno = r.PTNTIDNO 
-   AND km.[date] = REPLACE(r.svc_date, '-', '') 
-   AND km.[source] = 'OP' 
-   AND km.serial_no = r.serial_no
-   AND km.order_no = r.order_no
 ), ip_enriched AS (
   SELECT
-    km.observation_id,
+    r.PTNTIDNO AS k_ptntidno,
+    REPLACE(r.svc_date, '-', '') AS k_date,
+    'IP' AS k_source,
+    r.serial_no AS k_serial_no,
+    r.order_no AS k_order_no,
     pm.person_id,
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS observation_date,
@@ -238,23 +260,28 @@ WHERE m.ptntidno IS NULL;
   FROM ip_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'IP'
-  LEFT JOIN keys_map km 
-    ON km.ptntidno = r.PTNTIDNO 
-   AND km.[date] = REPLACE(r.svc_date, '-', '') 
-   AND km.[source] = 'IP' 
-   AND km.serial_no = 0
-   AND km.order_no = r.order_no
 ), unioned AS (
   SELECT * FROM op_enriched
   UNION ALL
   SELECT * FROM ip_enriched
+), mapped AS (
+  SELECT
+    u.*,
+    hm.target_concept_id,
+    hm.source_concept_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY u.k_ptntidno, u.k_date, u.k_source, u.k_serial_no, u.k_order_no
+      ORDER BY COALESCE(hm.target_concept_id, 0), COALESCE(hm.source_concept_id, 0)
+    ) AS map_index
+  FROM unioned u
+  LEFT JOIN hira_observation_map hm ON hm.code_norm = u.normalized_code
 ), final_enriched AS (
   SELECT
-    u.observation_id,
-    u.person_id,
-    COALESCE(hm.target_concept_id, 0) AS observation_concept_id,
-    u.observation_date,
-    u.observation_datetime,
+    km.observation_id,
+    m.person_id,
+    COALESCE(m.target_concept_id, 0) AS observation_concept_id,
+    m.observation_date,
+    m.observation_datetime,
     32817 AS observation_type_concept_id,
     NULL AS value_as_number,
     NULL AS value_as_string,
@@ -262,17 +289,23 @@ WHERE m.ptntidno IS NULL;
     NULL AS qualifier_concept_id,
     NULL AS unit_concept_id,
     NULL AS provider_id,
-    u.visit_occurrence_id,
+    m.visit_occurrence_id,
     NULL AS visit_detail_id,
-    u.observation_source_value,
-    hm.source_concept_id AS observation_source_concept_id,
+    m.observation_source_value,
+    m.source_concept_id AS observation_source_concept_id,
     NULL AS unit_source_value,
     NULL AS qualifier_source_value,
     NULL AS value_source_value,
     NULL AS observation_event_id,
     NULL AS obs_event_field_concept_id
-  FROM unioned u
-  LEFT JOIN hira_observation_map hm ON hm.code_norm = u.normalized_code
+  FROM mapped m
+  LEFT JOIN keys_map km 
+    ON km.ptntidno = m.k_ptntidno
+   AND km.[date] = m.k_date
+   AND km.[source] = m.k_source
+   AND km.serial_no = m.k_serial_no
+   AND km.order_no = m.k_order_no
+   AND km.map_index = m.map_index
 )
 
 -- 신규만 삽입 (ID는 DEFAULT 제약으로 시퀀스 사용)

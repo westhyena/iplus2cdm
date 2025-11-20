@@ -13,8 +13,9 @@ BEGIN
     [source] varchar(2) NOT NULL,
     serial_no int NOT NULL,
     order_no int NOT NULL,
+    map_index int NOT NULL,
     procedure_occurrence_id int NOT NULL UNIQUE,
-    CONSTRAINT PK_procedure_occurrence_map PRIMARY KEY (ptntidno, [date], [source], serial_no, order_no)
+    CONSTRAINT PK_procedure_occurrence_map PRIMARY KEY (ptntidno, [date], [source], serial_no, order_no, map_index)
   );
 END;
 
@@ -36,6 +37,16 @@ BEGIN
     ALTER TABLE [$(StagingSchema)].procedure_occurrence_map
       ADD serial_no int NOT NULL CONSTRAINT DF_procedure_occurrence_map_serial DEFAULT (0) WITH VALUES;
   END;
+  IF NOT EXISTS (
+    SELECT 1 FROM sys.columns c
+    JOIN sys.tables t ON t.object_id = c.object_id
+    JOIN sys.schemas s ON s.schema_id = t.schema_id
+    WHERE s.name = '$(StagingSchema)' AND t.name = 'procedure_occurrence_map' AND c.name = 'map_index'
+  )
+  BEGIN
+    ALTER TABLE [$(StagingSchema)].procedure_occurrence_map
+      ADD map_index int NOT NULL CONSTRAINT DF_procedure_occurrence_map_mapindex DEFAULT (1) WITH VALUES;
+  END;
   IF EXISTS (
     SELECT 1 FROM sys.key_constraints kc
     JOIN sys.tables t ON t.object_id = kc.parent_object_id
@@ -47,7 +58,7 @@ BEGIN
     ALTER TABLE [$(StagingSchema)].procedure_occurrence_map DROP CONSTRAINT PK_procedure_occurrence_map;
   END;
   ALTER TABLE [$(StagingSchema)].procedure_occurrence_map
-    ADD CONSTRAINT PK_procedure_occurrence_map PRIMARY KEY (ptntidno, [date], [source], serial_no, order_no);
+    ADD CONSTRAINT PK_procedure_occurrence_map PRIMARY KEY (ptntidno, [date], [source], serial_no, order_no, map_index);
 END;
 
 

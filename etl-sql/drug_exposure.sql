@@ -51,7 +51,8 @@ END CATCH
     REPLACE(o.[진료일자], '-', '') AS [date],
     'OP' AS [source],
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),'')) AS serial_no,
-    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no,
+    UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200))))) AS claim_code_norm
   FROM  [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
@@ -64,22 +65,49 @@ END CATCH
     REPLACE(i.[진료일자], '-', '') AS [date],
     'IP' AS [source],
     0 AS serial_no,
-    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no
+    TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no,
+    UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200))))) AS claim_code_norm
   FROM  [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
     AND i.[수가분류] = 3
     AND TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) IS NOT NULL
+), drug_map AS (
+  SELECT DISTINCT
+    UPPER(LTRIM(RTRIM(CAST(m.source_code AS varchar(200))))) AS code_norm
+  FROM [$(StagingSchema)].drug_vocabulary_map m
+  WHERE TRY_CONVERT(int, m.target_concept_id) IS NOT NULL
+), hira_map AS (
+  SELECT DISTINCT
+    UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm
+  FROM [$(StagingSchema)].hira_map m
+  WHERE m.TARGET_DOMAIN_ID = 'Drug'
+    AND m.INVALID_REASON IS NULL
+    AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
+), all_map AS (
+  SELECT code_norm FROM drug_map
+  UNION
+  SELECT code_norm FROM hira_map
+), src_mapped AS (
+  SELECT 
+    s.ptntidno, s.[date], s.[source], s.serial_no, s.order_no,
+    ROW_NUMBER() OVER (
+      PARTITION BY s.ptntidno, s.[date], s.[source], s.serial_no, s.order_no
+      ORDER BY (CASE WHEN am.code_norm IS NULL THEN 1 ELSE 0 END), s.claim_code_norm
+    ) AS map_index
+  FROM src_keys s
+  LEFT JOIN all_map am ON am.code_norm = s.claim_code_norm
 )
 INSERT INTO  [$(StagingSchema)].drug_exposure_map (
-    ptntidno, [date], [source], serial_no, order_no, drug_exposure_id)
+    ptntidno, [date], [source], serial_no, order_no, map_index, drug_exposure_id)
 SELECT k.ptntidno,
        k.[date],
        k.[source],
        k.serial_no,
        k.order_no,
-       x.base_id + ROW_NUMBER() OVER (ORDER BY k.[date], k.order_no)
-FROM src_keys k
+       k.map_index,
+       x.base_id + ROW_NUMBER() OVER (ORDER BY k.[date], k.order_no, k.map_index)
+FROM src_mapped k
 CROSS JOIN (
   SELECT ISNULL(MAX(drug_exposure_id),0) AS base_id
   FROM   [$(StagingSchema)].drug_exposure_map
@@ -90,6 +118,7 @@ LEFT JOIN [$(StagingSchema)].drug_exposure_map m
   AND m.[source] = k.[source]
   AND m.serial_no = k.serial_no
   AND m.order_no = k.order_no
+  AND m.map_index = k.map_index
 WHERE m.ptntidno IS NULL;
 
 -- 공통 맵/소스 CTE
@@ -98,10 +127,10 @@ WHERE m.ptntidno IS NULL;
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
 ), keys_map AS (
-  SELECT ptntidno, [date], [source], serial_no, order_no, drug_exposure_id FROM [$(StagingSchema)].drug_exposure_map
+  SELECT ptntidno, [date], [source], serial_no, order_no, map_index, drug_exposure_id FROM [$(StagingSchema)].drug_exposure_map
 ), drug_map AS (
   -- 사용자 제공 매핑: 청구코드 정규화 후 매핑
-  SELECT
+  SELECT DISTINCT
     UPPER(LTRIM(RTRIM(CAST(m.source_code AS varchar(200))))) AS code_norm,
     TRY_CONVERT(int, m.target_concept_id) AS target_concept_id,
     TRY_CONVERT(int, m.source_concept_id) AS source_concept_id
@@ -109,7 +138,7 @@ WHERE m.ptntidno IS NULL;
   WHERE TRY_CONVERT(int, m.target_concept_id) IS NOT NULL
 ), hira_map AS (
   -- HIRA 매핑: TARGET_DOMAIN_ID = 'Drug' 인 경우만 사용, 무효(INVALID_REASON) 제외
-  SELECT
+  SELECT DISTINCT
     UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
     TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) AS target_concept_id,
     TRY_CONVERT(int, m.SOURCE_CONCEPT_ID)   AS source_concept_id
@@ -117,6 +146,10 @@ WHERE m.ptntidno IS NULL;
   WHERE m.TARGET_DOMAIN_ID = 'Drug'
     AND m.INVALID_REASON IS NULL
     AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
+), all_map AS (
+  SELECT code_norm, target_concept_id, source_concept_id FROM drug_map
+  UNION
+  SELECT code_norm, target_concept_id, source_concept_id FROM hira_map
 ), op_raw AS (
   -- 외래(OCSSLIP)
   SELECT
@@ -149,7 +182,11 @@ WHERE m.ptntidno IS NULL;
     AND i.[수가분류] = 3
 ), op_enriched AS (
   SELECT
-    km.drug_exposure_id,
+    r.PTNTIDNO AS k_ptntidno,
+    REPLACE(r.svc_date, '-', '') AS k_date,
+    'OP' AS k_source,
+    r.serial_no AS k_serial_no,
+    r.order_no AS k_order_no,
     pm.person_id,
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS drug_exposure_start_date,
@@ -166,15 +203,13 @@ WHERE m.ptntidno IS NULL;
   FROM op_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map  vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'OP'
-  LEFT JOIN keys_map  km 
-    ON km.ptntidno = r.PTNTIDNO 
-   AND km.[date] = REPLACE(r.svc_date, '-', '') 
-   AND km.[source] = 'OP' 
-   AND km.serial_no = r.serial_no
-   AND km.order_no = r.order_no
 ), ip_enriched AS (
   SELECT
-    km.drug_exposure_id,
+    r.PTNTIDNO AS k_ptntidno,
+    REPLACE(r.svc_date, '-', '') AS k_date,
+    'IP' AS k_source,
+    r.serial_no AS k_serial_no,
+    r.order_no AS k_order_no,
     pm.person_id,
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS drug_exposure_start_date,
@@ -190,47 +225,57 @@ WHERE m.ptntidno IS NULL;
   FROM ip_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map  vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'IP'
-  LEFT JOIN keys_map  km 
-    ON km.ptntidno = r.PTNTIDNO 
-   AND km.[date] = REPLACE(r.svc_date, '-', '') 
-   AND km.[source] = 'IP' 
-   AND km.serial_no = 0
-   AND km.order_no = r.order_no
 ), unioned AS (
   SELECT * FROM op_enriched
   UNION ALL
   SELECT * FROM ip_enriched
+), mapped AS (
+  SELECT
+    u.*,
+    am.target_concept_id,
+    am.source_concept_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY u.k_ptntidno, u.k_date, u.k_source, u.k_serial_no, u.k_order_no
+      ORDER BY COALESCE(am.target_concept_id, 0), COALESCE(am.source_concept_id, 0)
+    ) AS map_index
+  FROM unioned u
+  LEFT JOIN all_map am ON am.code_norm = u.normalized_code
 ), final_enriched AS (
   SELECT
-    u.drug_exposure_id,
-    u.person_id,
-    COALESCE(dm.target_concept_id, hm.target_concept_id, 0) AS drug_concept_id,
-    u.drug_exposure_start_date,
-    u.drug_exposure_start_datetime,
-    u.drug_exposure_end_date,
-    u.drug_exposure_end_datetime,
+    km.drug_exposure_id,
+    m.person_id,
+    COALESCE(m.target_concept_id, 0) AS drug_concept_id,
+    m.drug_exposure_start_date,
+    m.drug_exposure_start_datetime,
+    m.drug_exposure_end_date,
+    m.drug_exposure_end_datetime,
     32817 AS drug_type_concept_id,
     NULL AS stop_reason,
     NULL AS refills,
     -- quantity = 투여량 x 투여횟수
     CASE 
-      WHEN u.dose_amount IS NULL OR u.dose_frequency IS NULL THEN NULL
-      ELSE TRY_CONVERT(float, u.dose_amount * u.dose_frequency)
+      WHEN m.dose_amount IS NULL OR m.dose_frequency IS NULL THEN NULL
+      ELSE TRY_CONVERT(float, m.dose_amount * m.dose_frequency)
     END AS quantity,
-    u.days_supply,
+    m.days_supply,
     NULL AS sig,
     NULL AS route_concept_id,
     NULL AS lot_number,
     NULL AS provider_id,
-    u.visit_occurrence_id,
+    m.visit_occurrence_id,
     NULL AS visit_detail_id,
-    u.drug_source_value,
-    COALESCE(dm.source_concept_id, hm.source_concept_id) AS drug_source_concept_id,
+    m.drug_source_value,
+    m.source_concept_id AS drug_source_concept_id,
     NULL AS route_source_value,
     NULL AS dose_unit_source_value
-  FROM unioned u
-  LEFT JOIN drug_map dm ON dm.code_norm = u.normalized_code
-  LEFT JOIN hira_map hm ON hm.code_norm = u.normalized_code
+  FROM mapped m
+  LEFT JOIN keys_map km 
+    ON km.ptntidno = m.k_ptntidno
+   AND km.[date] = m.k_date
+   AND km.[source] = m.k_source
+   AND km.serial_no = m.k_serial_no
+   AND km.order_no = m.k_order_no
+   AND km.map_index = m.map_index
 )
 
 -- 신규만 삽입
