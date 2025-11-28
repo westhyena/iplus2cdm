@@ -38,9 +38,9 @@
 | person_id | Integer | Y | `person_id_map` | 환자 ID 매핑 |
 | visit_concept_id | Integer | Y | `OTPTMETP` (외래), 입원여부 | 외래: 응급('E') 포함시 9203(ER), 아니면 9201(OP)<br>입원: 9202(IP) |
 | visit_start_date | Date | Y | `OTPTMDDT` / `INPTADDT` | 진료/입원 일자 |
-| visit_start_datetime | Datetime | Y | `OTPTMDTM` / `INPTADTM` | 진료/입원 일시 (시간 없으면 일자로 대체) |
+| visit_start_datetime | Datetime | Y | `OTPTMDTM` / `INPTADTM` | 진료/입원 일자 + 시간(HHMM) 결합 (시간 없으면 00:00) |
 | visit_end_date | Date | Y | `OTPTMDDT` / `INPTDSDT` | 진료/퇴원 일자 |
-| visit_end_datetime | Datetime | Y | `OTPTMDTM` / `INPTDSTM` | 진료/퇴원 일시 (시간 없으면 일자로 대체) |
+| visit_end_datetime | Datetime | Y | `OTPTMDTM` / `INPTDSTM` | 진료/퇴원 일자 + 시간(HHMM) 결합 (시간 없으면 00:00) |
 | visit_type_concept_id | Integer | Y | - | 32817 (EHR) |
 | provider_id | Integer | N | - | NULL |
 | care_site_id | Integer | N | - | NULL |

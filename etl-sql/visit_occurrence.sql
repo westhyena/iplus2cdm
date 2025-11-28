@@ -69,11 +69,19 @@ WHERE m.ptntidno IS NULL;
     -- 당일 최소 접수일자
     TRY_CONVERT(date, MIN(r.OTPTMDDT)) AS visit_start_date, 
     -- 당일 최소 접수일시(시간 없으면 일자 대체)
-    MIN(COALESCE(TRY_CONVERT(datetime, r.OTPTMDTM), TRY_CONVERT(datetime, r.OTPTMDDT))) AS visit_start_datetime, 
+    MIN(CASE 
+      WHEN r.OTPTMDTM IS NOT NULL AND LEN(r.OTPTMDTM) = 4 
+      THEN DATEADD(minute, CAST(RIGHT(r.OTPTMDTM, 2) AS INT), DATEADD(hour, CAST(LEFT(r.OTPTMDTM, 2) AS INT), CAST(TRY_CONVERT(date, r.OTPTMDDT) AS DATETIME)))
+      ELSE TRY_CONVERT(datetime, r.OTPTMDDT)
+    END) AS visit_start_datetime, 
     -- 당일 최대 접수일자
     TRY_CONVERT(date, MAX(r.OTPTMDDT)) AS visit_end_date,
     -- 당일 최대 접수일시(시간 없으면 일자 대체)
-    MAX(COALESCE(TRY_CONVERT(datetime, r.OTPTMDTM), TRY_CONVERT(datetime, r.OTPTMDDT))) AS visit_end_datetime,
+    MAX(CASE 
+      WHEN r.OTPTMDTM IS NOT NULL AND LEN(r.OTPTMDTM) = 4 
+      THEN DATEADD(minute, CAST(RIGHT(r.OTPTMDTM, 2) AS INT), DATEADD(hour, CAST(LEFT(r.OTPTMDTM, 2) AS INT), CAST(TRY_CONVERT(date, r.OTPTMDDT) AS DATETIME)))
+      ELSE TRY_CONVERT(datetime, r.OTPTMDDT)
+    END) AS visit_end_datetime,
     32817 AS visit_type_concept_id,
     NULL AS provider_id,
     NULL AS care_site_id,
@@ -100,9 +108,17 @@ WHERE m.ptntidno IS NULL;
     pm.person_id,
     9202 AS visit_concept_id,
     MIN(TRY_CONVERT(date, r.INPTADDT)) AS visit_start_date, -- 입원일 최솟값
-    MIN(COALESCE(TRY_CONVERT(datetime, r.INPTADTM), TRY_CONVERT(datetime, r.INPTADDT))) AS visit_start_datetime, -- 입원일시 최솟값(시간 없으면 일자 대체)
+    MIN(CASE 
+      WHEN r.INPTADTM IS NOT NULL AND LEN(r.INPTADTM) = 4 
+      THEN DATEADD(minute, CAST(RIGHT(r.INPTADTM, 2) AS INT), DATEADD(hour, CAST(LEFT(r.INPTADTM, 2) AS INT), CAST(TRY_CONVERT(date, r.INPTADDT) AS DATETIME)))
+      ELSE TRY_CONVERT(datetime, r.INPTADDT)
+    END) AS visit_start_datetime, -- 입원일시 최솟값(시간 없으면 일자 대체)
     MAX(TRY_CONVERT(date, r.INPTDSDT)) AS visit_end_date, -- 퇴원일 최댓값
-    MAX(TRY_CONVERT(datetime, r.INPTDSTM)) AS visit_end_datetime, -- 퇴원일시 최댓값
+    MAX(CASE 
+      WHEN r.INPTDSTM IS NOT NULL AND LEN(r.INPTDSTM) = 4 
+      THEN DATEADD(minute, CAST(RIGHT(r.INPTDSTM, 2) AS INT), DATEADD(hour, CAST(LEFT(r.INPTDSTM, 2) AS INT), CAST(TRY_CONVERT(date, r.INPTDSDT) AS DATETIME)))
+      ELSE TRY_CONVERT(datetime, r.INPTDSDT)
+    END) AS visit_end_datetime, -- 퇴원일시 최댓값
     32817 AS visit_type_concept_id,
     NULL AS provider_id,
     NULL AS care_site_id,
