@@ -58,8 +58,10 @@ END CATCH;
 ), lab_master AS (
   SELECT 
     m.LABID,
+    UPPER(LTRIM(RTRIM(m.LABNM))) AS LABNM_NORM, -- 미리 정규화
     m.LABNM,
     v.ItemNumber,
+    UPPER(LTRIM(RTRIM(v.ItemName))) AS ItemName_NORM, -- 미리 정규화
     v.ItemName,
     v.Symbol
   FROM
@@ -164,6 +166,7 @@ END CATCH;
           ('Item39', t.Item39),
           ('Item40', t.Item40)
   ) AS v(ItemNumber, ItemValue)
+  WHERE v.ItemValue IS NOT NULL AND LEN(v.ItemValue) > 0 -- 조기 필터링: 빈 값 제외
 ), src_enriched AS (
   SELECT  
     pm.person_id,
@@ -202,8 +205,8 @@ END CATCH;
       m.LABID = t.LABID
       AND m.ItemNumber = t.ItemNumber
   LEFT JOIN meas_map mm
-    ON UPPER(LTRIM(RTRIM(m.LABNM))) = mm.LABNM
-   AND UPPER(LTRIM(RTRIM(m.ItemName))) = mm.ItemName
+    ON m.LABNM_NORM = mm.LABNM -- 정규화된 컬럼 사용
+   AND m.ItemName_NORM = mm.ItemName -- 정규화된 컬럼 사용
   JOIN person_map pm
     ON pm.ptntidno = t.PTNTIDNO
   JOIN visit_map vm
@@ -288,12 +291,18 @@ FROM src_enriched m;
     OR TRY_CONVERT(int, p.[수익분류]) IN (9999)
   )
   AND TRY_CONVERT(int, p.[수가분류]) <> 3
+), target_codes AS (
+  -- 필터링 대상 코드 통합
+  SELECT code_norm FROM hira_measurement_map
+  UNION
+  SELECT code_norm FROM meas_code_meta
 ), op_raw AS (
   -- 외래(OCSSLIP) 원본
   SELECT
     o.PTNTIDNO,
     o.[진료일자] AS svc_date,
-    o.[청구코드] AS claim_code
+    o.[청구코드] AS claim_code,
+    UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200))))) AS normalized_code -- 미리 정규화
   FROM [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
@@ -302,35 +311,20 @@ FROM src_enriched m;
   SELECT
     i.PTNTIDNO,
     i.[진료일자] AS svc_date,
-    i.[청구코드] AS claim_code
+    i.[청구코드] AS claim_code,
+    UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200))))) AS normalized_code -- 미리 정규화
   FROM [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
 ), op_filtered AS (
-  -- 후보 선별: HIRA(Measurement) 매핑 또는 PICMECHM 9999 분류 포함
+  -- 후보 선별: 통합된 target_codes와 조인
   SELECT r.*
   FROM op_raw r
-  WHERE 
-    EXISTS (
-      SELECT 1 FROM hira_measurement_map hm 
-      WHERE hm.code_norm = UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200)))))
-    )
-    OR EXISTS (
-      SELECT 1 FROM meas_code_meta pm
-      WHERE pm.code_norm = UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200)))))
-    )
+  JOIN target_codes tc ON tc.code_norm = r.normalized_code
 ), ip_filtered AS (
   SELECT r.*
   FROM ip_raw r
-  WHERE 
-    EXISTS (
-      SELECT 1 FROM hira_measurement_map hm 
-      WHERE hm.code_norm = UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200)))))
-    )
-    OR EXISTS (
-      SELECT 1 FROM meas_code_meta pm
-      WHERE pm.code_norm = UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200)))))
-    )
+  JOIN target_codes tc ON tc.code_norm = r.normalized_code
 ), op_enriched AS (
   SELECT
     pm.person_id,
@@ -348,7 +342,7 @@ FROM src_enriched m;
     NULL AS provider_id,
     NULL AS visit_detail_id,
     CAST(r.claim_code AS varchar(50)) AS measurement_source_value,
-    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code
+    r.normalized_code
   FROM op_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'OP'
@@ -369,7 +363,7 @@ FROM src_enriched m;
     NULL AS provider_id,
     NULL AS visit_detail_id,
     CAST(r.claim_code AS varchar(50)) AS measurement_source_value,
-    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code
+    r.normalized_code
   FROM ip_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO AND vm.[date] = REPLACE(r.svc_date, '-', '') AND vm.[source] = 'IP'
