@@ -245,4 +245,4 @@
 | person_id | Integer | Y | `person_id` | |
 | observation_period_start_date | Date | Y | `visit_start_date` | 환자의 최초 방문일 |
 | observation_period_end_date | Date | Y | `visit_end_date` | 환자의 마지막 방문일 |
-| period_type_concept_id | Integer | Y | - | 32818 (EHR) |
+| period_type_concept_id | Integer | Y | - | 32817 (EHR) |

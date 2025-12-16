@@ -58,7 +58,7 @@ END CATCH
     -- 방문이 있는 경우: 첫 방문 ~ 마지막 방문
     flv.first_visit_date AS observation_period_start_date,
     flv.last_visit_date  AS observation_period_end_date,
-    32818 AS period_type_concept_id
+    32817 AS period_type_concept_id
   FROM [$(CdmSchema)].person p
   LEFT JOIN first_last_visit flv ON flv.person_id = p.person_id
 )
