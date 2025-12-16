@@ -50,12 +50,27 @@ END CATCH
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
 ), cond_map AS (
-  -- 사용자 제공 매핑: 원본 코드에서 '.' 제거 후 매핑 우선 적용
+  -- 사용자 제공 매핑: 원본 코드에서 '.' 제거 후 매핑
   SELECT
-    m.source_code,
+    REPLACE(m.source_code, '.', '') AS source_code,
     m.target_concept_id,
     m.source_concept_id
   FROM [$(StagingSchema)].condition_vocabulary_map m
+), hira_map AS (
+  -- HIRA 매핑: TARGET_DOMAIN_ID = 'Condition' 인 경우만 사용, 무효(INVALID_REASON) 제외
+  SELECT DISTINCT
+    UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
+    TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) AS target_concept_id,
+    TRY_CONVERT(int, m.SOURCE_CONCEPT_ID)   AS source_concept_id
+  FROM [$(StagingSchema)].hira_map m
+  WHERE m.TARGET_DOMAIN_ID = 'Condition'
+    AND m.INVALID_REASON IS NULL
+    AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
+), all_map AS (
+  -- 우선순위: 1. HIRA, 2. 사용자 매핑
+  SELECT code_norm, target_concept_id, source_concept_id, 1 AS priority FROM hira_map
+  UNION ALL
+  SELECT source_code AS code_norm, target_concept_id, source_concept_id, 2 AS priority FROM cond_map
 ), op_raw AS (
   SELECT
     o.PTNTIDNO,
@@ -116,27 +131,38 @@ END CATCH
   SELECT * FROM op_enriched
   UNION ALL
   SELECT * FROM ip_enriched
+), mapped AS (
+  SELECT
+    u.*,
+    am.target_concept_id,
+    am.source_concept_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY u.person_id, u.visit_occurrence_id, u.condition_start_date, u.normalized_code
+      ORDER BY am.priority ASC
+    ) AS map_rank
+  FROM unioned u
+  LEFT JOIN all_map am ON am.code_norm = u.normalized_code
 ), final_enriched AS (
   SELECT
-    u.person_id,
-    COALESCE(cm.target_concept_id, 0) AS condition_concept_id,
-    u.condition_start_date,
-    u.condition_start_datetime,
+    m.person_id,
+    COALESCE(m.target_concept_id, 0) AS condition_concept_id,
+    m.condition_start_date,
+    m.condition_start_datetime,
     -- 종료일자는 방문 테이블에서 연결해 가져오기 (없으면 start_date)
-    COALESCE(try_convert(date, vo.visit_end_date), u.condition_start_date) AS condition_end_date,
+    COALESCE(try_convert(date, vo.visit_end_date), m.condition_start_date) AS condition_end_date,
     NULL AS condition_end_datetime,
     32817 AS condition_type_concept_id,
-    u.condition_status_concept_id,
+    m.condition_status_concept_id,
     NULL AS stop_reason,
     NULL AS provider_id,
-    u.visit_occurrence_id,
+    m.visit_occurrence_id,
     NULL AS visit_detail_id,
-    u.condition_source_value,
-    cm.source_concept_id AS condition_source_concept_id,
+    m.condition_source_value,
+    m.source_concept_id AS condition_source_concept_id,
     NULL AS condition_status_source_value
-  FROM unioned u
-  LEFT JOIN cond_map cm ON cm.source_code = u.normalized_code
-  LEFT JOIN [$(CdmSchema)].visit_occurrence vo ON vo.visit_occurrence_id = u.visit_occurrence_id
+  FROM mapped m
+  LEFT JOIN [$(CdmSchema)].visit_occurrence vo ON vo.visit_occurrence_id = m.visit_occurrence_id
+  WHERE m.map_rank = 1
 )
 
 -- 신규만 삽입
