@@ -96,7 +96,7 @@ SET NOCOUNT ON;
   JOIN lab_master m
     ON m.LABID = t.LABID AND m.ItemNumber = t.ItemNumber
   LEFT JOIN meas_map mm
-    ON m.LABNM_NORM = mm.LABNM AND m.ItemName_NORM = mm.ItemName
+    ON m.LABNM_NORM = mm.LABNM COLLATE DATABASE_DEFAULT AND m.ItemName_NORM = mm.ItemName COLLATE DATABASE_DEFAULT
   JOIN person_map pm ON pm.ptntidno = t.PTNTIDNO
   JOIN visit_map vm ON vm.ptntidno = t.PTNTIDNO AND vm.date = t.REGDATE
   JOIN [$(StagingSchema)].measurement_map k
@@ -157,11 +157,11 @@ SET NOCOUNT ON;
 ), op_filtered AS (
   SELECT r.*
   FROM op_raw r
-  JOIN target_codes tc ON tc.code_norm = r.normalized_code
+  JOIN target_codes tc ON tc.code_norm = r.normalized_code COLLATE DATABASE_DEFAULT
 ), ip_filtered AS (
   SELECT r.*
   FROM ip_raw r
-  JOIN target_codes tc ON tc.code_norm = r.normalized_code
+  JOIN target_codes tc ON tc.code_norm = r.normalized_code COLLATE DATABASE_DEFAULT
 ), op_enriched AS (
   SELECT
     r.PTNTIDNO AS k_ptntidno, 
@@ -220,11 +220,22 @@ SET NOCOUNT ON;
   SELECT * FROM op_enriched
   UNION ALL
   SELECT * FROM ip_enriched
+), code_mapped AS (
+  SELECT
+    u.*,
+    hm.target_concept_id,
+    hm.source_concept_id,
+    ROW_NUMBER() OVER (
+         PARTITION BY u.k_ptntidno, u.k_date, u.k_src, u.k_serial, u.k_order 
+         ORDER BY hm.target_concept_id
+       ) AS rn
+  FROM code_union u
+  LEFT JOIN hira_measurement_map hm ON hm.code_norm = u.normalized_code COLLATE DATABASE_DEFAULT
 ), code_enriched AS (
   SELECT
     k.measurement_id,
     u.person_id,
-    COALESCE(hm.target_concept_id, 0) AS measurement_concept_id,
+    COALESCE(u.target_concept_id, 0) AS measurement_concept_id,
     u.measurement_date,
     u.measurement_datetime,
     u.measurement_time,
@@ -239,14 +250,13 @@ SET NOCOUNT ON;
     u.visit_occurrence_id,
     u.visit_detail_id,
     u.measurement_source_value,
-    hm.source_concept_id AS measurement_source_concept_id,
+    u.source_concept_id AS measurement_source_concept_id,
     NULL AS unit_source_value,
     NULL AS unit_source_concept_id,
     u.value_source_value,
     NULL AS measurement_event_id,
     NULL AS meas_event_field_concept_id
-  FROM code_union u
-  LEFT JOIN hira_measurement_map hm ON hm.code_norm = u.normalized_code
+  FROM code_mapped u
   JOIN [$(StagingSchema)].measurement_map k
     ON k.ptntidno = u.k_ptntidno
     AND k.[date] = u.k_date
@@ -257,10 +267,7 @@ SET NOCOUNT ON;
     AND k.mk_seq = ''
     AND k.mk_serial = u.k_serial
     AND k.mk_order = u.k_order
-    AND k.map_index = ROW_NUMBER() OVER (
-         PARTITION BY u.k_ptntidno, u.k_date, u.k_src, u.k_serial, u.k_order 
-         ORDER BY hm.target_concept_id
-       ) 
+    AND k.map_index = u.rn
 )
 SELECT * FROM lab_enriched
 UNION ALL
