@@ -62,7 +62,7 @@ $env:PGPASSWORD = $TargetPassword
 # Helper: Run Sqlcmd (MSSQL)
 function Invoke-SqlCmdQuery {
     param($query, $vars = @{})
-    $args = @("-S", $SourceServer, "-d", $SourceDatabase, "-b", "-I")
+    $args = @("-S", $SourceServer, "-d", $SourceDatabase, "-b", "-I", "-C")
     if ($SourceUser) { $args += @("-U", $SourceUser, "-P", $SourcePassword) }
     else { $args += "-E" }
     
@@ -81,7 +81,7 @@ function Invoke-SqlCmdQuery {
 
 function Invoke-SqlCmdFile {
     param($path, $vars = @{})
-    $args = @("-S", $SourceServer, "-d", $SourceDatabase, "-b", "-I")
+    $args = @("-S", $SourceServer, "-d", $SourceDatabase, "-b", "-I", "-C")
     if ($SourceUser) { $args += @("-U", $SourceUser, "-P", $SourcePassword) }
     else { $args += "-E" }
     
@@ -140,9 +140,9 @@ function Invoke-BcpOut {
     
     # Override args for -w -> -c (Char/UTF8) to fix encoding issues on Mac/Postgres
     if ($SourceUser) { 
-         $args = @($sql, "queryout", $outFile, "-c", "-t|", "-S", $SourceServer, "-d", $SourceDatabase, "-U", $SourceUser, "-P", $SourcePassword)
+         $args = @($sql, "queryout", $outFile, "-c", "-t|", "-S", $SourceServer, "-d", $SourceDatabase, "-U", $SourceUser, "-P", $SourcePassword, "-u")
     } else {
-         $args = @($sql, "queryout", $outFile, "-c", "-t|", "-S", $SourceServer, "-d", $SourceDatabase, "-T")
+         $args = @($sql, "queryout", $outFile, "-c", "-t|", "-S", $SourceServer, "-d", $SourceDatabase, "-T", "-u")
     }
     
     Write-Host "[BCP] Exporting ..."
