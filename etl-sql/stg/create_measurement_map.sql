@@ -49,7 +49,7 @@ BEGIN
         ALTER TABLE [$(StagingSchema)].measurement_map DROP CONSTRAINT PK_measurement_map;
      END
      
-     ALTER TABLE [$(StagingSchema)].measurement_map ADD mk_seq varchar(10) NOT NULL DEFAULT WITH VALUES '';
+     ALTER TABLE [$(StagingSchema)].measurement_map ADD mk_seq varchar(10) NOT NULL CONSTRAINT DF_measurement_map_seq DEFAULT '' WITH VALUES;
      
      -- Recreate PK with new column
      ALTER TABLE [$(StagingSchema)].measurement_map ADD CONSTRAINT PK_measurement_map PRIMARY KEY (ptntidno, [date], [source], mk_lab_id, mk_item_no, mk_lr, mk_seq, mk_serial, mk_order, map_index);
