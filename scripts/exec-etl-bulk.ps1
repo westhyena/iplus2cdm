@@ -214,7 +214,8 @@ $MapFiles = @(
     "etl-sql/map/generate_drug_exposure_map.sql",
     "etl-sql/map/generate_procedure_occurrence_map.sql",
     "etl-sql/map/generate_device_exposure_map.sql",
-    "etl-sql/map/generate_observation_map.sql"
+    "etl-sql/map/generate_observation_map.sql",
+    "etl-sql/map/generate_measurement_map.sql"
 )
 
 foreach ($f in $MapFiles) {
@@ -230,7 +231,7 @@ $Domains = @(
     @{ Name="drug_exposure"; Extract="etl-sql/extract/extract_drug_exposure.sql"; Table="drug_exposure"; IdCol="drug_exposure_id" },
     @{ Name="procedure_occurrence"; Extract="etl-sql/extract/extract_procedure_occurrence.sql"; Table="procedure_occurrence"; IdCol="procedure_occurrence_id" },
     @{ Name="device_exposure"; Extract="etl-sql/extract/extract_device_exposure.sql"; Table="device_exposure"; IdCol="device_exposure_id" },
-    @{ Name="measurement"; Extract="etl-sql/extract/extract_measurement.sql"; Table="measurement"; IdCol="" }, 
+    @{ Name="measurement"; Extract="etl-sql/extract/extract_measurement.sql"; Table="measurement"; IdCol="measurement_id" }, 
     @{ Name="observation"; Extract="etl-sql/extract/extract_observation.sql"; Table="observation"; IdCol="observation_id" },
     @{ Name="cost"; Extract="etl-sql/extract/extract_cost.sql"; Table="cost"; IdCol="" }
 )
