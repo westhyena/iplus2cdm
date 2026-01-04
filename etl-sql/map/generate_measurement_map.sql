@@ -8,8 +8,8 @@ SET NOCOUNT ON;
     t.REGDATE,
     t.LABID,
     t.LR,
+    t.SEQ, -- Added SEQ
     v.ItemNumber,
-    -- We don't need value here for keys, just existence
     v.ItemValue
   FROM
     [$(SrcSchema)].[INFLABD] t
@@ -26,19 +26,17 @@ SET NOCOUNT ON;
   ) AS v(ItemNumber, ItemValue)
   WHERE v.ItemValue IS NOT NULL AND LEN(v.ItemValue) > 0
 ), lab_keys AS (
-  SELECT
+  SELECT DISTINCT
     r.PTNTIDNO AS ptntidno,
     r.REGDATE AS [date],
     'LAB' AS [source],
     CAST(r.LABID AS varchar(20)) AS mk_lab_id,
     CAST(r.ItemNumber AS varchar(10)) AS mk_item_no,
     ISNULL(CAST(r.LR AS varchar(20)), '') AS mk_lr,
+    ISNULL(CAST(r.SEQ AS varchar(10)), '') AS mk_seq, -- Map SEQ
     0 AS mk_serial,
     0 AS mk_order,
     1 AS map_index 
-    -- Lab usually 1 row -> 1 event. 
-    -- If same key exists multiple times? INFLABD PK should prevent duplicate (LABID, ItemNumber, Date, PTNT, LR)?
-    -- Actually INFLABD keys usually PTNT, REGDATE, LABID, LR. ItemNumber is column. So unique.
   FROM lab_raw r
 ),
 
@@ -109,6 +107,7 @@ claim_keys_fanout AS (
     '' AS mk_lab_id,
     '' AS mk_item_no,
     '' AS mk_lr,
+    '' AS mk_seq, -- Empty for claims
     c.serial_no AS mk_serial,
     c.order_no AS mk_order,
     ROW_NUMBER() OVER (
@@ -127,7 +126,7 @@ all_keys AS (
 )
 
 INSERT INTO [$(StagingSchema)].measurement_map (
-  ptntidno, [date], [source], mk_lab_id, mk_item_no, mk_lr, mk_serial, mk_order, map_index, measurement_id
+  ptntidno, [date], [source], mk_lab_id, mk_item_no, mk_lr, mk_seq, mk_serial, mk_order, map_index, measurement_id
 )
 SELECT 
   k.ptntidno,
@@ -136,6 +135,7 @@ SELECT
   k.mk_lab_id,
   k.mk_item_no,
   k.mk_lr,
+  k.mk_seq,
   k.mk_serial,
   k.mk_order,
   k.map_index,
@@ -151,6 +151,7 @@ LEFT JOIN [$(StagingSchema)].measurement_map m
   AND m.mk_lab_id = k.mk_lab_id
   AND m.mk_item_no = k.mk_item_no
   AND m.mk_lr = k.mk_lr
+  AND m.mk_seq = k.mk_seq
   AND m.mk_serial = k.mk_serial
   AND m.mk_order = k.mk_order
   AND m.map_index = k.map_index

@@ -42,6 +42,7 @@ SET NOCOUNT ON;
     t.REGDATE,
     t.LABID,
     t.LR,
+    t.SEQ,
     v.ItemNumber,
     v.ItemValue
   FROM
@@ -105,6 +106,7 @@ SET NOCOUNT ON;
     AND k.mk_lab_id = CAST(t.LABID AS varchar(20))
     AND k.mk_item_no = CAST(t.ItemNumber AS varchar(10))
     AND k.mk_lr = ISNULL(CAST(t.LR AS varchar(20)), '')
+    AND k.mk_seq = ISNULL(CAST(t.SEQ AS varchar(10)), '')
     AND k.mk_serial = 0
     AND k.mk_order = 0
     AND k.map_index = 1
@@ -252,6 +254,7 @@ SET NOCOUNT ON;
     AND k.mk_lab_id = ''
     AND k.mk_item_no = ''
     AND k.mk_lr = ''
+    AND k.mk_seq = ''
     AND k.mk_serial = u.k_serial
     AND k.mk_order = u.k_order
     AND k.map_index = ROW_NUMBER() OVER (
