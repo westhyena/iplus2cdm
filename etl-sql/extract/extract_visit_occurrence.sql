@@ -88,6 +88,7 @@ SET NOCOUNT ON;
     NULL AS care_site_id,
     NULL AS visit_source_value,
     NULL AS visit_source_concept_id,
+    NULL AS admitted_from_concept_id,
     MAX(CAST(NULLIF(LTRIM(RTRIM(r.INPTADRT)), '') AS varchar(50))) AS admitted_from_source_value, -- 여러 값 중 대표값 사용
     NULL AS discharged_to_concept_id,
     MAX(CAST(NULLIF(LTRIM(RTRIM(r.INPTDSRS)), '') AS varchar(50))) AS discharged_to_source_value -- 여러 값 중 대표값 사용
