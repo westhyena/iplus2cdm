@@ -265,6 +265,7 @@ foreach ($d in $Domains) {
         Invoke-PsqlCopy -table $d.Table -file $tempFile
         
     } finally {
+        Write-Host "  -> Removing temp file $tempFile"
         if (Test-Path $tempFile) { Remove-Item $tempFile }
     }
 }

@@ -89,8 +89,8 @@ DECLARE @MinId INT = $(MinId);
     NULL AS device_exposure_start_datetime,
     NULL AS device_exposure_end_date,
     NULL AS device_exposure_end_datetime,
-    CAST(r.claim_code AS varchar(50)) AS device_source_value,
-    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
+    REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(50)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS device_source_value,
+    UPPER(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(200)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '')))) AS normalized_code,
     'OP' AS src
   FROM op_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
@@ -108,8 +108,8 @@ DECLARE @MinId INT = $(MinId);
     NULL AS device_exposure_start_datetime,
     NULL AS device_exposure_end_date,
     NULL AS device_exposure_end_datetime,
-    CAST(r.claim_code AS varchar(50)) AS device_source_value,
-    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
+    REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(50)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS device_source_value,
+    UPPER(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(200)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '')))) AS normalized_code,
     'IP' AS src
   FROM ip_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO

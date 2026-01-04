@@ -21,8 +21,8 @@ SET NOCOUNT ON;
     NULLIF(TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,5,2)), 0) AS month_of_birth,
     NULLIF(TRY_CONVERT(int, SUBSTRING(r.PTNTBITH,7,2)), 0) AS day_of_birth,
     TRY_CONVERT(datetime, STUFF(STUFF(r.PTNTBITH,5,0,'-'),8,0,'-') + ' 00:00:00') AS birth_datetime,
-    r.PTNTIDNO AS person_source_value,
-    r.PTNTSEXX AS gender_source_value
+    REPLACE(REPLACE(REPLACE(r.PTNTIDNO, CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS person_source_value,
+    REPLACE(REPLACE(REPLACE(r.PTNTSEXX, CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS gender_source_value
   FROM src_raw r
   JOIN map m ON m.ptntidno = r.PTNTIDNO
 )
