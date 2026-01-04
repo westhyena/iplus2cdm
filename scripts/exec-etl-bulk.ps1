@@ -165,7 +165,7 @@ function Invoke-PsqlCopy {
         "device_exposure" { $cols = "" }
         "observation" { $cols = "" }
         "measurement" { $cols = "(person_id, measurement_concept_id, measurement_date, measurement_datetime, measurement_time, measurement_type_concept_id, operator_concept_id, value_as_number, value_as_concept_id, unit_concept_id, range_low, range_high, provider_id, visit_occurrence_id, visit_detail_id, measurement_source_value, measurement_source_concept_id, unit_source_value, unit_source_concept_id, value_source_value, measurement_event_id, meas_event_field_concept_id)" }
-        "cost" { $cols = "(cost_event_id, cost_domain_id, cost_type_concept_id, currency_concept_id, total_cost)" }
+        "cost" { $cols = "(cost_event_id, cost_domain_id, cost_type_concept_id, currency_concept_id, total_cost, total_charge, total_paid, paid_by_payer, paid_by_patient, paid_patient_copay, paid_patient_coinsurance, paid_patient_deductible, paid_by_primary, paid_ingredient_cost, paid_dispensing_fee, payer_plan_period_id, amount_allowed, revenue_code_concept_id, revenue_code_source_value, drg_concept_id, drg_source_value)" }
     }
     
     # Construct COPY command
@@ -199,7 +199,8 @@ $StgDDLs = @(
     "etl-sql/stg/create_observation_map.sql",
     "etl-sql/stg/create_hira_map.sql",  # Dependencies
     "etl-sql/stg/create_drug_vocabulary_map.sql",
-    "etl-sql/stg/create_measurement_vocabulary_map.sql"
+    "etl-sql/stg/create_measurement_vocabulary_map.sql",
+    "etl-sql/stg/create_measurement_map.sql"
     # Add others if needed
 )
 foreach ($f in $StgDDLs) {
