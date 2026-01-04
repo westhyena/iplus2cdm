@@ -39,8 +39,6 @@ WHERE m.ptntidno IS NULL;
   SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
 ), visit_map AS (
   SELECT ptntidno, date, source, visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
-), vocab AS (
-  SELECT source_vocabulary, source_code, concept_id FROM [$(StagingSchema)].vocabulary_map
 ), op_raw AS (
   SELECT
     o.PTNTIDNO,
@@ -124,14 +122,12 @@ WHERE m.ptntidno IS NULL;
     NULL AS care_site_id,
     NULL AS visit_source_value,
     NULL AS visit_source_concept_id,
-    MAX(v1.concept_id) AS admitted_from_concept_id, -- 여러 값 중 대표값 사용
+    NULL AS admitted_from_concept_id,
     MAX(CAST(r.INPTADRT AS varchar(50))) AS admitted_from_source_value, -- 여러 값 중 대표값 사용
-    MAX(v2.concept_id) AS discharged_to_concept_id, -- 여러 값 중 대표값 사용
+    NULL AS discharged_to_concept_id,
     MAX(CAST(r.INPTDSRS AS varchar(50))) AS discharged_to_source_value -- 여러 값 중 대표값 사용
   FROM ip_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
-  LEFT JOIN vocab v1 ON v1.source_vocabulary = 'ADMIT_FROM' AND v1.source_code = CAST(r.INPTADRT AS varchar(200))
-  LEFT JOIN vocab v2 ON v2.source_vocabulary = 'DISCHARGE_TO' AND v2.source_code = CAST(r.INPTDSRS AS varchar(200))
   JOIN visit_map vm
   ON
     vm.ptntidno = r.PTNTIDNO
