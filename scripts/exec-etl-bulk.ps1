@@ -181,6 +181,11 @@ function Invoke-PsqlCopy {
 
 $Root = Split-Path (Split-Path $MyInvocation.MyCommand.Path -Parent) -Parent
 
+# 0. Ensure Staging Schema Exists
+Write-Host "Ensuring Staging Schema [$StagingSchema] exists..."
+$schemaQuery = "IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '$StagingSchema') BEGIN EXEC('CREATE SCHEMA [$StagingSchema]') END"
+Invoke-SqlCmdQuery -query $schemaQuery
+
 # 1. Map Generation (MSSQL)
 Write-Host "=== Phase 1: Generating Maps on Source ===" -ForegroundColor Cyan
 
