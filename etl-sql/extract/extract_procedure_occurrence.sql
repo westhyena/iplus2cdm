@@ -91,8 +91,8 @@ DECLARE @MinId INT = $(MinId);
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS procedure_date,
     NULL AS procedure_datetime,
-    REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(50)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS procedure_source_value,
-    UPPER(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(200)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '')))) AS normalized_code,
+    NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS procedure_source_value,
+    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
     'OP' AS src
   FROM op_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
@@ -108,8 +108,8 @@ DECLARE @MinId INT = $(MinId);
     vm.visit_occurrence_id,
     TRY_CONVERT(date, r.svc_date) AS procedure_date,
     NULL AS procedure_datetime,
-    REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(50)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS procedure_source_value,
-    UPPER(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(200)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '')))) AS normalized_code,
+    NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS procedure_source_value,
+    UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
     'IP' AS src
   FROM ip_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO

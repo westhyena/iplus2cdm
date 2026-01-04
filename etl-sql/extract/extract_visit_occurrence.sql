@@ -52,7 +52,7 @@ SET NOCOUNT ON;
     NULL AS provider_id,
     NULL AS care_site_id,
     -- 모든 값을 콤마(,)로 연결하여 표시
-    STRING_AGG(REPLACE(REPLACE(REPLACE(r.OTPTMETP, CHAR(13), ''), CHAR(10), ''), CHAR(0), ''), ',') WITHIN GROUP (ORDER BY r.OTPTMETP) AS visit_source_value,
+    STRING_AGG(NULLIF(LTRIM(RTRIM(r.OTPTMETP)), ''), ',') WITHIN GROUP (ORDER BY r.OTPTMETP) AS visit_source_value,
     NULL AS visit_source_concept_id,
     NULL AS admitted_from_concept_id,
     NULL AS admitted_from_source_value,
@@ -91,9 +91,9 @@ SET NOCOUNT ON;
     NULL AS visit_source_value,
     NULL AS visit_source_concept_id,
     MAX(v1.concept_id) AS admitted_from_concept_id, -- 여러 값 중 대표값 사용
-    MAX(CAST(REPLACE(REPLACE(REPLACE(r.INPTADRT, CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS varchar(50))) AS admitted_from_source_value, -- 여러 값 중 대표값 사용
+    MAX(CAST(NULLIF(LTRIM(RTRIM(r.INPTADRT)), '') AS varchar(50))) AS admitted_from_source_value, -- 여러 값 중 대표값 사용
     MAX(v2.concept_id) AS discharged_to_concept_id, -- 여러 값 중 대표값 사용
-    MAX(CAST(REPLACE(REPLACE(REPLACE(r.INPTDSRS, CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS varchar(50))) AS discharged_to_source_value -- 여러 값 중 대표값 사용
+    MAX(CAST(NULLIF(LTRIM(RTRIM(r.INPTDSRS)), '') AS varchar(50))) AS discharged_to_source_value -- 여러 값 중 대표값 사용
   FROM ip_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN vocab v1 ON v1.source_vocabulary = 'ADMIT_FROM' AND v1.source_code = CAST(r.INPTADRT AS varchar(200))

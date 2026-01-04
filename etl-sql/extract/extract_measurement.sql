@@ -58,15 +58,15 @@ SET NOCOUNT ON;
           ('Item31', t.Item31), ('Item32', t.Item32), ('Item33', t.Item33), ('Item34', t.Item34), ('Item35', t.Item35),
           ('Item36', t.Item36), ('Item37', t.Item37), ('Item38', t.Item38), ('Item39', t.Item39), ('Item40', t.Item40)
   ) AS v(ItemNumber, ItemValue)
-  WHERE REPLACE(REPLACE(REPLACE(v.ItemValue, CHAR(13), ''), CHAR(10), ''), CHAR(0), '') IS NOT NULL AND LEN(REPLACE(REPLACE(REPLACE(v.ItemValue, CHAR(13), ''), CHAR(10), ''), CHAR(0), '')) > 0
+  WHERE NULLIF(LTRIM(RTRIM(v.ItemValue)), '') IS NOT NULL AND LEN(NULLIF(LTRIM(RTRIM(v.ItemValue)), '')) > 0
 ), lab_enriched AS (
   SELECT  
     k.measurement_id,
     pm.person_id,
     COALESCE(
       CASE
-        WHEN UPPER(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(t.LR, CHAR(13), ''), CHAR(10), ''), CHAR(0), '')))) IN ('R','OD','우','RIGHT','RIGHTEYE','RIGHT EYE','OD(우)') THEN mm.left_concept_id
-        WHEN UPPER(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(t.LR, CHAR(13), ''), CHAR(10), ''), CHAR(0), '')))) IN ('L','OS','좌','LEFT','LEFTEYE','LEFT EYE','OS(좌)') THEN mm.right_concept_id
+        WHEN UPPER(LTRIM(RTRIM(NULLIF(LTRIM(RTRIM(t.LR)), '')))) IN ('R','OD','우','RIGHT','RIGHTEYE','RIGHT EYE','OD(우)') THEN mm.left_concept_id
+        WHEN UPPER(LTRIM(RTRIM(NULLIF(LTRIM(RTRIM(t.LR)), '')))) IN ('L','OS','좌','LEFT','LEFTEYE','LEFT EYE','OS(좌)') THEN mm.right_concept_id
         ELSE mm.common_concept_id
       END,
       mm.common_concept_id,
@@ -77,7 +77,7 @@ SET NOCOUNT ON;
     NULL AS measurement_time,
     32817 AS measurement_type_concept_id,
     NULL AS operator_concept_id,
-    TRY_CAST(REPLACE(REPLACE(REPLACE(REPLACE(t.ItemValue, ' ', ''), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS FLOAT) AS value_as_number,
+    TRY_CAST(NULLIF(LTRIM(RTRIM(REPLACE(t.ItemValue, ' ', ''))), '') AS FLOAT) AS value_as_number,
     NULL AS value_as_concept_id,
     NULL AS unit_concept_id,
     NULL AS range_low,
@@ -85,11 +85,11 @@ SET NOCOUNT ON;
     NULL AS provider_id,
     vm.visit_occurrence_id,
     NULL AS visit_detail_id,
-    CONCAT(m.LABNM, ' - ', m.ItemName, ' - ', m.Symbol, ' - ', REPLACE(REPLACE(REPLACE(t.LR, CHAR(13), ''), CHAR(10), ''), CHAR(0), '')) AS measurement_source_value,
+    CONCAT(m.LABNM, ' - ', m.ItemName, ' - ', m.Symbol, ' - ', NULLIF(LTRIM(RTRIM(t.LR)), '')) AS measurement_source_value,
     NULL AS measurement_source_concept_id,
     NULL AS unit_source_value,
     NULL AS unit_source_concept_id,
-    REPLACE(REPLACE(REPLACE(t.ItemValue, CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS value_source_value,
+    NULLIF(LTRIM(RTRIM(t.ItemValue)), '') AS value_source_value,
     NULL AS measurement_event_id,
     NULL AS meas_event_field_concept_id
   FROM lab_raw t
@@ -183,7 +183,7 @@ SET NOCOUNT ON;
     NULL AS range_high,
     NULL AS provider_id,
     NULL AS visit_detail_id,
-    REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(50)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS measurement_source_value,
+    NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS measurement_source_value,
     r.normalized_code,
     NULL AS value_source_value
   FROM op_filtered r
@@ -210,7 +210,7 @@ SET NOCOUNT ON;
     NULL AS range_high,
     NULL AS provider_id,
     NULL AS visit_detail_id,
-    REPLACE(REPLACE(REPLACE(CAST(r.claim_code AS varchar(50)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS measurement_source_value,
+    NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS measurement_source_value,
     r.normalized_code,
     NULL AS value_source_value
   FROM ip_filtered r

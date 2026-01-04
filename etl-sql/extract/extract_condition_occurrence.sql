@@ -59,8 +59,8 @@ SET NOCOUNT ON;
     -- 종료일자 계산을 위해 추후 조인 필요하지만, OP는 보통 당일이 많음. 일단 NULL.
     NULL AS condition_end_datetime,
     CASE WHEN TRY_CONVERT(int, r.row_i) = 0 THEN 32902 ELSE 32908 END AS condition_status_concept_id,
-    REPLACE(REPLACE(REPLACE(CAST(r.[상병코드] AS varchar(50)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS condition_source_value,
-    REPLACE(REPLACE(REPLACE(CAST(r.[상병코드] AS varchar(200)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS normalized_code,
+    NULLIF(LTRIM(RTRIM(CAST(r.[상병코드] AS varchar(50)))), '') AS condition_source_value,
+    UPPER(LTRIM(RTRIM(CAST(r.[상병코드] AS varchar(200))))) AS normalized_code,
     'OP' AS src
   FROM op_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
@@ -73,8 +73,8 @@ SET NOCOUNT ON;
     NULL AS condition_start_datetime,
     NULL AS condition_end_datetime,
     CASE WHEN TRY_CONVERT(int, r.row_i) = 0 THEN 32902 ELSE 32908 END AS condition_status_concept_id,
-    REPLACE(REPLACE(REPLACE(CAST(r.[상병코드] AS varchar(50)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS condition_source_value,
-    REPLACE(REPLACE(REPLACE(CAST(r.[상병코드] AS varchar(200)), CHAR(13), ''), CHAR(10), ''), CHAR(0), '') AS normalized_code,
+    NULLIF(LTRIM(RTRIM(CAST(r.[상병코드] AS varchar(50)))), '') AS condition_source_value,
+    UPPER(LTRIM(RTRIM(CAST(r.[상병코드] AS varchar(200))))) AS normalized_code,
     'IP' AS src
   FROM ip_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
