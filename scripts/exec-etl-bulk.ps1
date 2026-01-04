@@ -159,7 +159,7 @@ function Invoke-PsqlCopy {
     switch ($table) {
         "person" { $cols = "" } 
         "visit_occurrence" { $cols = "" }
-        "observation_period" { $cols = "(person_id, observation_period_start_date, observation_period_end_date, period_type_concept_id)" }
+        "observation_period" { $cols = "(observation_period_id, person_id, observation_period_start_date, observation_period_end_date, period_type_concept_id)" }
         "drug_exposure" { $cols = "" }
         "procedure_occurrence" { $cols = "" }
         "device_exposure" { $cols = "" }
@@ -227,7 +227,7 @@ Write-Host "=== Phase 2: Bulk Extraction & Loading ===" -ForegroundColor Cyan
 $Domains = @(
     @{ Name="person"; Extract="etl-sql/extract/extract_person.sql"; Table="person"; IdCol="person_id" },
     @{ Name="visit_occurrence"; Extract="etl-sql/extract/extract_visit_occurrence.sql"; Table="visit_occurrence"; IdCol="visit_occurrence_id" },
-    @{ Name="observation_period"; Extract="etl-sql/extract/extract_observation_period.sql"; Table="observation_period"; IdCol="" }, 
+    @{ Name="observation_period"; Extract="etl-sql/extract/extract_observation_period.sql"; Table="observation_period"; IdCol="observation_period_id" }, 
     @{ Name="drug_exposure"; Extract="etl-sql/extract/extract_drug_exposure.sql"; Table="drug_exposure"; IdCol="drug_exposure_id" },
     @{ Name="procedure_occurrence"; Extract="etl-sql/extract/extract_procedure_occurrence.sql"; Table="procedure_occurrence"; IdCol="procedure_occurrence_id" },
     @{ Name="device_exposure"; Extract="etl-sql/extract/extract_device_exposure.sql"; Table="device_exposure"; IdCol="device_exposure_id" },

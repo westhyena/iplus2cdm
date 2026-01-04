@@ -25,6 +25,7 @@ SET NOCOUNT ON;
   GROUP BY pm.person_id
 )
 SELECT
+  ROW_NUMBER() OVER (ORDER BY r.person_id) + $(MinId) AS observation_period_id,
   r.person_id,
   r.first_visit_date AS observation_period_start_date,
   r.last_visit_date  AS observation_period_end_date,
