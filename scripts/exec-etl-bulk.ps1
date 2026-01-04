@@ -222,7 +222,42 @@ foreach ($f in $MapFiles) {
     Invoke-SqlCmdFile (Join-Path $Root $f)
 }
 
+
+# Helper: Truncate Target Tables (Full Reload)
+function Invoke-TruncateTables {
+    Write-Host "!!! FULL RELOAD DETECTED !!!" -ForegroundColor Red
+    Write-Host "Truncating target tables in schema '$CdmSchema'..." -ForegroundColor Red
+    
+    # Order matters if no CASCADE, but CASCADE handles dependencies.
+    # We will use CASCADE to be safe and simple.
+    $tables = @(
+        "cost", 
+        "observation", 
+        "measurement", 
+        "device_exposure", 
+        "procedure_occurrence", 
+        "drug_exposure", 
+        "observation_period", 
+        "visit_occurrence", 
+        "person"
+    )
+    
+    foreach ($t in $tables) {
+        $q = "TRUNCATE TABLE $CdmSchema.$t CASCADE;"
+        Write-Host "  -> Truncating $t ..."
+        $args = @("-h", $TargetServer, "-p", $TargetPort, "-U", $TargetUser, "-d", $TargetDatabase, "-c", $q)
+        & $PsqlBin @args
+    }
+    
+    Write-Host "Target tables truncated." -ForegroundColor Yellow
+}
+
+
 # 2. Extract & Load (Bulk)
+if ($FullReload) {
+    Invoke-TruncateTables
+}
+
 Write-Host "=== Phase 2: Bulk Extraction & Loading ===" -ForegroundColor Cyan
 $Domains = @(
     @{ Name="person"; Extract="etl-sql/extract/extract_person.sql"; Table="person"; IdCol="person_id" },
