@@ -161,7 +161,7 @@ function Invoke-PsqlCopy {
         "visit_occurrence" { $cols = "" }
         "observation_period" { $cols = "(observation_period_id, person_id, observation_period_start_date, observation_period_end_date, period_type_concept_id)" }
         "drug_exposure" { $cols = "" }
-        "condition_occurrence" { $cols = "(person_id, condition_concept_id, condition_start_date, condition_start_datetime, condition_end_date, condition_end_datetime, condition_type_concept_id, condition_status_concept_id, stop_reason, provider_id, visit_occurrence_id, visit_detail_id, condition_source_value, condition_source_concept_id, condition_status_source_value)" }
+        "condition_occurrence" { $cols = "(condition_occurrence_id, person_id, condition_concept_id, condition_start_date, condition_start_datetime, condition_end_date, condition_end_datetime, condition_type_concept_id, condition_status_concept_id, stop_reason, provider_id, visit_occurrence_id, visit_detail_id, condition_source_value, condition_source_concept_id, condition_status_source_value)" }
         "procedure_occurrence" { $cols = "" }
         "device_exposure" { $cols = "" }
         "observation" { $cols = "" }
@@ -299,7 +299,7 @@ $Domains = @(
     @{ Name="person"; Extract="etl-sql/extract/extract_person.sql"; Table="person"; IdCol="person_id" },
     @{ Name="visit_occurrence"; Extract="etl-sql/extract/extract_visit_occurrence.sql"; Table="visit_occurrence"; IdCol="visit_occurrence_id" },
     @{ Name="observation_period"; Extract="etl-sql/extract/extract_observation_period.sql"; Table="observation_period"; IdCol="observation_period_id" }, 
-    @{ Name="condition_occurrence"; Extract="etl-sql/extract/extract_condition_occurrence.sql"; Table="condition_occurrence"; IdCol="" },
+    @{ Name="condition_occurrence"; Extract="etl-sql/extract/extract_condition_occurrence.sql"; Table="condition_occurrence"; IdCol="condition_occurrence_id" },
     @{ Name="drug_exposure"; Extract="etl-sql/extract/extract_drug_exposure.sql"; Table="drug_exposure"; IdCol="drug_exposure_id" },
     @{ Name="procedure_occurrence"; Extract="etl-sql/extract/extract_procedure_occurrence.sql"; Table="procedure_occurrence"; IdCol="procedure_occurrence_id" },
     @{ Name="device_exposure"; Extract="etl-sql/extract/extract_device_exposure.sql"; Table="device_exposure"; IdCol="device_exposure_id" },

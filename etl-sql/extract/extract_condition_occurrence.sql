@@ -88,6 +88,7 @@ SET NOCOUNT ON;
   LEFT JOIN all_map am ON am.code_norm = u.normalized_code
 )
 SELECT
+  ROW_NUMBER() OVER (ORDER BY m.person_id, m.condition_start_date) + $(MinId) AS condition_occurrence_id,
   m.person_id,
   COALESCE(m.target_concept_id, 0) AS condition_concept_id,
   m.condition_start_date,
