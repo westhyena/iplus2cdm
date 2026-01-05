@@ -98,7 +98,12 @@ SET NOCOUNT ON;
   LEFT JOIN meas_map mm
     ON m.LABNM_NORM = mm.LABNM COLLATE DATABASE_DEFAULT AND m.ItemName_NORM = mm.ItemName COLLATE DATABASE_DEFAULT
   JOIN person_map pm ON pm.ptntidno = t.PTNTIDNO
-  JOIN visit_map vm ON vm.ptntidno = t.PTNTIDNO AND vm.date = t.REGDATE
+  OUTER APPLY (
+    SELECT TOP 1 visit_occurrence_id 
+    FROM visit_map vm 
+    WHERE vm.ptntidno = t.PTNTIDNO AND vm.date = t.REGDATE
+    ORDER BY (CASE WHEN vm.[source] = 'IP' THEN 1 ELSE 2 END), visit_occurrence_id DESC
+  ) vm
   JOIN [$(StagingSchema)].measurement_map k
     ON k.ptntidno = t.PTNTIDNO
     AND k.[date] = t.REGDATE
