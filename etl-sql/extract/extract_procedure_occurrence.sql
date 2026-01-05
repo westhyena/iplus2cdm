@@ -136,6 +136,8 @@ SELECT
     COALESCE(m.target_concept_id, 0) AS procedure_concept_id,
     m.procedure_date,
     m.procedure_datetime,
+    NULL AS procedure_end_date,
+    NULL AS procedure_end_datetime,
     32817 AS procedure_type_concept_id,
     NULL AS modifier_concept_id,
     NULL AS quantity,
