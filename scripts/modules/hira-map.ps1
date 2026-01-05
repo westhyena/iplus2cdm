@@ -84,7 +84,7 @@ function Hira-InvokeBcpImport([string]$server, [string]$database, [string]$user,
   if ($user) { $auth += @('-U', $user, '-P', $password) } else { $auth += @('-T') }
   $r = if ($rowTerm) { $rowTerm } else { '0x0d0a' }
   $t = if ($fieldDelimHex) { $fieldDelimHex } else { '0x2c' }
-  $opts = @('-c', ('-t' + $t), ('-r' + $r), '-F', '2', '-k', '-e', (Join-Path ([System.IO.Path]::GetTempPath()) 'hira_map.bcp.err'))
+  $opts = @('-c', ('-t' + $t), ('-r' + $r), '-F', '2', '-k', '-e', (Join-Path ([System.IO.Path]::GetTempPath()) 'hira_map.bcp.err'), '-u')
   if ($BcpCodePage) { $opts += @('-C', $BcpCodePage.ToString()) }
 
   $authLog = @()

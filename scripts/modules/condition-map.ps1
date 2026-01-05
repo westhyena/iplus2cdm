@@ -88,7 +88,7 @@ function Invoke-BcpImport([string]$server, [string]$database, [string]$user, [st
   $auth = @('-S', $server, '-d', $database)
   if ($user) { $auth += @('-U', $user, '-P', $password) } else { $auth += @('-T') }
   $r = if ($rowTerm) { $rowTerm } else { '0x0d0a' }
-  $opts = @('-c', '-t0x09', ("-r" + $r), '-F', '2', '-k', '-e', (Join-Path ([System.IO.Path]::GetTempPath()) 'condition_map.bcp.err'))
+  $opts = @('-c', '-t0x09', ("-r" + $r), '-F', '2', '-k', '-e', (Join-Path ([System.IO.Path]::GetTempPath()) 'condition_map.bcp.err'), '-u')
   if ($BcpCodePage) { $opts += @('-C', $BcpCodePage.ToString()) }
 
   # Log (mask password)
