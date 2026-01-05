@@ -187,7 +187,21 @@ $schemaQuery = "IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '$StagingS
 Invoke-SqlCmdQuery -query $schemaQuery
 
 # 1. Map Generation (MSSQL)
+if ($FullReload) {
+    if ((Get-Command "Invoke-TruncateTables" -ErrorAction SilentlyContinue)) {
+         # Defined below but let's just wait until we call it.
+    }
+}
+
+# 1. Map Generation (MSSQL)
 Write-Host "=== Phase 1: Generating Maps on Source ===" -ForegroundColor Cyan
+
+# Load Modules
+$hiraModule = Join-Path $Root "scripts/modules/hira-map.ps1"
+if (Test-Path $hiraModule) { . $hiraModule }
+
+$measModule = Join-Path $Root "scripts/modules/measurement-map.ps1"
+if (Test-Path $measModule) { . $measModule }
 
 # 1.1 Ensure Map Tables Exist (Run DDLs)
 $StgDDLs = @(
@@ -220,6 +234,26 @@ $MapFiles = @(
 
 foreach ($f in $MapFiles) {
     Invoke-SqlCmdFile (Join-Path $Root $f)
+}
+
+# 1.3 Populate Hira/Measurement Maps (PowerShell Modules)
+# Construct SqlCmd Args similar to helpers but as a reusable array for modules
+$SqlCmdBaseArgs = @("-S", $SourceServer, "-d", $SourceDatabase, "-b", "-I", "-C")
+if ($SourceUser) { $SqlCmdBaseArgs += @("-U", $SourceUser, "-P", $SourcePassword) }
+else { $SqlCmdBaseArgs += "-E" }
+$SqlCmdBaseArgs += @("-v", "StagingSchema=$StagingSchema", "CdmSchema=$CdmSchema", "SrcSchema=$SrcSchema")
+
+$HiraMapPath = Join-Path $Root "vocab/mapping/hira_map.tsv"
+$MeasMapPath = Join-Path $Root "vocab/mapping/measurement_map.tsv"
+
+if (Get-Command Invoke-LoadHiraMap -ErrorAction SilentlyContinue) {
+    Write-Host "Loading Hira Map from $HiraMapPath ..."
+    Invoke-LoadHiraMap -csvPath $HiraMapPath -stagingSchema $StagingSchema -sqlcmd $SqlcmdBin -sqlcmdArgs $SqlCmdBaseArgs -server $SourceServer -database $SourceDatabase -user $SourceUser -password $SourcePassword
+}
+
+if (Get-Command Invoke-LoadMeasurementVocabularyMap -ErrorAction SilentlyContinue) {
+    Write-Host "Loading Measurement Vocabulary Map from $MeasMapPath ..."
+    Invoke-LoadMeasurementVocabularyMap -tsvPath $MeasMapPath -stagingSchema $StagingSchema -sqlcmd $SqlcmdBin -sqlcmdArgs $SqlCmdBaseArgs -server $SourceServer -database $SourceDatabase -user $SourceUser -password $SourcePassword
 }
 
 
