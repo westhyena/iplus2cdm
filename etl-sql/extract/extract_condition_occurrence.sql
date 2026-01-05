@@ -5,12 +5,6 @@ SET NOCOUNT ON;
   SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
-), cond_map AS (
-  SELECT
-    REPLACE(m.source_code, '.', '') AS source_code,
-    m.target_concept_id,
-    m.source_concept_id
-  FROM [$(StagingSchema)].condition_vocabulary_map m
 ), hira_map AS (
   SELECT DISTINCT
     UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
@@ -22,8 +16,6 @@ SET NOCOUNT ON;
     AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
 ), all_map AS (
   SELECT code_norm, target_concept_id, source_concept_id, 1 AS priority FROM hira_map
-  UNION ALL
-  SELECT source_code AS code_norm, target_concept_id, source_concept_id, 2 AS priority FROM cond_map
 ), op_raw AS (
   SELECT
     o.PTNTIDNO,
