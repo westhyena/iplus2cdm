@@ -18,7 +18,7 @@ SELECT
     '$(SOURCE_DESCRIPTION)',
     NULLIF('$(SOURCE_DOCUMENTATION_REFERENCE)', ''),
     NULLIF('$(CDM_ETL_REFERENCE)', ''),
-    TRY_CAST('$(SOURCE_RELEASE_DATE)' AS DATE),
+    CAST('$(SOURCE_RELEASE_DATE)' AS DATE),
     CURRENT_DATE,
     '$(CDM_VERSION)',
     756265, -- CDM v5.3.1 concept id (commonly used for 5.4 as well, or update if specific one exists)
