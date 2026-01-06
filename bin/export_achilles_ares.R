@@ -73,14 +73,13 @@ if (!dir.exists(output_path)) {
 }
 
 tryCatch({
-  Achilles::exportToJson(
+  Achilles::exportToAres(
+  connectionDetails = connectionDetails,
     connectionDetails = connectionDetails,
     cdmDatabaseSchema = cdm_schema,
     resultsDatabaseSchema = results_schema,
+    vocabDatabaseSchema = vocab_path,
     outputPath = output_path,
-    vocabDatabaseSchema = vocab_schema,
-    # cdmVersion = get_env("CDM_VERSION", "5.4"), # Optional, usually auto-detected or 5.x
-    compressIntoOneFile = FALSE # Keep as individual JSON files for web server
   )
   message("Achilles export completed successfully!")
 }, error = function(e) {
