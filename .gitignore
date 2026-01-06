@@ -3,3 +3,8 @@
 
 vocab/*
 jdbc/
+
+# Achills results
+errorReportSql.txt
+output/
+
