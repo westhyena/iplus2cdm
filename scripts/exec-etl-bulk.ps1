@@ -15,7 +15,18 @@ param(
     [string]$BcpBin = "bcp",
     [string]$SqlcmdBin = "sqlcmd",
     [string]$PsqlBin = "psql",
-    [switch]$FullReload
+    [switch]$FullReload,
+
+    # CDM Source Params (can be set via env)
+    [string]$CdmSourceName,
+    [string]$CdmSourceAbbreviation,
+    [string]$CdmHolder,
+    [string]$SourceDescription,
+    [string]$SourceDocumentationReference,
+    [string]$CdmEtlReference,
+    [string]$SourceReleaseDate,
+    [string]$CdmVersion,
+    [string]$VocabularyVersion
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,6 +58,17 @@ if ($ConfigPath -and (Test-Path $ConfigPath)) {
                 if ($k -eq 'OMOP_CDM_SCHEMA') { $CdmSchema = $v }
                 if ($k -eq 'STAGING_SCHEMA') { $StagingSchema = $v }
                 if ($k -eq 'SRC_SCHEMA') { $SrcSchema = $v }
+                
+                # CDM Source Vars
+                if ($k -eq 'CDM_SOURCE_NAME') { $CdmSourceName = $v }
+                if ($k -eq 'CDM_SOURCE_ABBREVIATION') { $CdmSourceAbbreviation = $v }
+                if ($k -eq 'CDM_HOLDER') { $CdmHolder = $v }
+                if ($k -eq 'SOURCE_DESCRIPTION') { $SourceDescription = $v }
+                if ($k -eq 'SOURCE_DOCUMENTATION_REFERENCE') { $SourceDocumentationReference = $v }
+                if ($k -eq 'CDM_ETL_REFERENCE') { $CdmEtlReference = $v }
+                if ($k -eq 'SOURCE_RELEASE_DATE') { $SourceReleaseDate = $v }
+                if ($k -eq 'CDM_VERSION') { $CdmVersion = $v }
+                if ($k -eq 'VOCABULARY_VERSION') { $VocabularyVersion = $v }
             }
         }
     }
@@ -340,6 +362,37 @@ foreach ($d in $Domains) {
         Write-Host "  -> Removing temp file $tempFile"
         if (Test-Path $tempFile) { Remove-Item $tempFile }
     }
+    }
+}
+
+# 3. CDM Source Info
+if ($CdmSourceName) {
+    Write-Host "=== Phase 3: Populating CDM Source Info ===" -ForegroundColor Cyan
+    
+    # We need to run this against Target (Postgres) directly because cdm_source.sql uses $(...) style variables 
+    # but intended for direct SQL execution? Wait, the plan was to use Invoke-SqlCmdFile which runs against MSSQL?
+    # NO, cdm_source table is in TARGET (Postgres). 
+    # Check plan: "execute etl-sql/cdm_source.sql similarly to other SQL scripts"
+    # But wait, other SQL scripts (extract_*.sql) are run against MSSQL to extract data.
+    # cdm_source.sql is an INSERT statement. It should run against POSTGRES.
+    
+    # We will use psql to execute it, performing variable substitution manually since psql -v is slightly different
+    # or just replace content and pipe.
+    
+    $cdmSourceSql = Get-Content (Join-Path $Root "etl-sql/cdm_source.sql") -Raw
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(CdmSchema\)', $CdmSchema
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(CDM_SOURCE_NAME\)', $CdmSourceName
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(CDM_SOURCE_ABBREVIATION\)', $CdmSourceAbbreviation
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(CDM_HOLDER\)', $CdmHolder
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(SOURCE_DESCRIPTION\)', $SourceDescription
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(SOURCE_DOCUMENTATION_REFERENCE\)', $SourceDocumentationReference
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(CDM_ETL_REFERENCE\)', $CdmEtlReference
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(SOURCE_RELEASE_DATE\)', $SourceReleaseDate
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(CDM_VERSION\)', $CdmVersion
+    $cdmSourceSql = $cdmSourceSql -replace '\$\(VOCABULARY_VERSION\)', $VocabularyVersion
+    
+    Write-Host "Inserting CDM Source record..."
+    & $PsqlBin @("-h", $TargetServer, "-p", $TargetPort, "-U", $TargetUser, "-d", $TargetDatabase, "-c", $cdmSourceSql)
 }
 
 Write-Host "ETL Complete." -ForegroundColor Green

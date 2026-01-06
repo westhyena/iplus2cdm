@@ -41,8 +41,6 @@ if (is.null(db_password)) {
   stop("Error: POSTGRES_PASSWORD environment variable is not set.")
 }
 
-downloadJdbcDrivers("postgresql", pathToDriver = driver_path)
-
 message("-------------------------------------------------------------------------")
 message("Starting Achilles JSON Export")
 message("-------------------------------------------------------------------------")
