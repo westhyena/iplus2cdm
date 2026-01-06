@@ -35,8 +35,8 @@ if (!require("remotes")) install.packages("remotes")
 
 # OHDSI 라이브러리 설치
 message("Installing OHDSI dependencies...")
-remotes::install_github("OHDSI/SqlRender")
-remotes::install_github("OHDSI/DatabaseConnector")
+if (!require("SqlRender")) install.packages("SqlRender")
+if (!require("DatabaseConnector")) install.packages("DatabaseConnector")
 
 # Achilles 설치
 message("Installing Achilles...")

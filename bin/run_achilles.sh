@@ -8,7 +8,11 @@ set -e
 
 # Get the directory where this script is located
 SCRIPT_DIR=./bin
-PROJECT_ROOT=./
+PROJECT_ROOT=.
+
+DRIVER_PATH="./jdbc"
+
+mkdir -p $DRIVER_PATH
 
 # Load environment variables
 ENV_FILE="$PROJECT_ROOT/.env"

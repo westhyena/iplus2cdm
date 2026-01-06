@@ -28,6 +28,7 @@ get_env <- function(key, default = NULL) {
   return(val)
 }
 
+driver_path <- get_env("DRIVER_PATH", "./jdbc")
 db_server   <- get_env("POSTGRES_SERVER", "localhost")
 db_port     <- get_env("POSTGRES_PORT", "5432")
 db_name     <- get_env("POSTGRES_DB", "TargetDB")
@@ -41,6 +42,8 @@ vocab_schema   <- get_env("OMOP_VOCAB_SCHEMA", cdm_schema) # Default to CDM sche
 if (is.null(db_password)) {
   stop("Error: POSTGRES_PASSWORD environment variable is not set.")
 }
+
+downloadJdbcDrivers("postgresql", pathToDriver = driver_path)
 
 message("-------------------------------------------------------------------------")
 message("Starting Achilles Execution")
@@ -62,7 +65,8 @@ connectionDetails <- DatabaseConnector::createConnectionDetails(
   server = paste(db_server, db_name, sep = "/"),
   port = db_port,
   user = db_user,
-  password = db_password
+  password = db_password,
+  pathToDriver = driver_path
 )
 
 tryCatch({
