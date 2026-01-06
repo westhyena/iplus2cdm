@@ -17,14 +17,12 @@ sudo apt install -y \
     libpng-dev \
     default-jdk \
     pkg-config \
-    openjdk-11-jdk 
+    openjdk-11-jdk \
+    r-cran-rjava
 
 # 2. Java 환경 설정 (rJava 연동을 위함)
-export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
-export PATH=$PATH:$JAVA_HOME/bin
-
 echo "2. Java 환경 재설정 중..."
-sudo R CMD javareconf
+sudo JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 PATH=$PATH:$JAVA_HOME/bin R CMD javareconf
 
 # 3. R 패키지 설치 (Heredoc을 사용하여 R 스크립트 실행)
 echo "3. R 패키지 및 Achilles 설치 중 (시간이 소요될 수 있습니다)..."
