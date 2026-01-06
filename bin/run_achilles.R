@@ -36,7 +36,7 @@ db_user     <- get_env("POSTGRES_USER", "postgres")
 db_password <- get_env("POSTGRES_PASSWORD")
 cdm_schema  <- get_env("OMOP_CDM_SCHEMA", "cdm")
 # Default results schema to 'results' or 'achilles' if not specified
-results_schema <- get_env("ACHILLES_RESULTS_SCHEMA", "achilles")
+results_schema <- get_env("OMOP_ACHILLES_RESULTS_SCHEMA", "achilles")
 vocab_schema   <- get_env("OMOP_VOCAB_SCHEMA", cdm_schema) # Default to CDM schema if not separate
 
 if (is.null(db_password)) {
@@ -90,7 +90,7 @@ tryCatch({
 # -------------------------------------------------------------------------
 # Configurable parameters (could be extended to env vars)
 num_threads <- as.numeric(get_env("ACHILLES_NUM_THREADS", "1"))
-source_name <- get_env("ACHILLES_SOURCE_NAME", "iPlus2CDM")
+source_name <- get_env("OMOP_CDM_SCHEMA", "cdm")
 cdm_version <- get_env("CDM_VERSION", "5.4")
 
 message(paste("Running Achilles with", num_threads, "threads..."))
@@ -104,11 +104,7 @@ tryCatch({
     sourceName = source_name,
     cdmVersion = cdm_version,
     numThreads = num_threads,
-    createTable = TRUE,
-    smallCellCount = 5,
-    ltds = TRUE,        # Load Table DDLs
-    runHeel = TRUE,     # Run Heel checks
-    runCostAnalysis = TRUE
+    createTable = TRUE
   )
   message("Achilles execution completed successfully!")
 }, error = function(e) {
