@@ -362,7 +362,6 @@ foreach ($d in $Domains) {
         Write-Host "  -> Removing temp file $tempFile"
         if (Test-Path $tempFile) { Remove-Item $tempFile }
     }
-    }
 }
 
 # 3. CDM Source Info
