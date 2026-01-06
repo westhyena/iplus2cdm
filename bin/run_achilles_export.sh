@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------
-# Run Achilles JSON Export
+# Run Achilles Ares Export
 # -------------------------------------------------------------------------
-# This script executes the R script to export Achilles results to JSON.
+# This script executes the R script to export Achilles results to Ares format.
 # Usage:
 #   bin/run_achilles_export.sh
 # -------------------------------------------------------------------------
@@ -28,7 +28,7 @@ else
 fi
 
 echo "=================================================="
-echo "Starting Achilles JSON Export"
+echo "Starting Achilles Ares Export"
 echo "=================================================="
 
 if ! command -v Rscript &> /dev/null; then
@@ -36,4 +36,4 @@ if ! command -v Rscript &> /dev/null; then
     exit 1
 fi
 
-Rscript "$SCRIPT_DIR/export_achilles_json.R"
+Rscript "$SCRIPT_DIR/export_achilles_ares.R"
