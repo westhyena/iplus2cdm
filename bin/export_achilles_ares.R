@@ -74,7 +74,6 @@ if (!dir.exists(output_path)) {
 
 tryCatch({
   Achilles::exportToAres(
-  connectionDetails = connectionDetails,
     connectionDetails = connectionDetails,
     cdmDatabaseSchema = cdm_schema,
     resultsDatabaseSchema = results_schema,
