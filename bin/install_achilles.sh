@@ -16,9 +16,13 @@ sudo apt install -y \
     libxml2-dev \
     libpng-dev \
     default-jdk \
-    pkg-config
+    pkg-config \
+    openjdk-11-jdk 
 
 # 2. Java 환경 설정 (rJava 연동을 위함)
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+export PATH=$PATH:$JAVA_HOME/bin
+
 echo "2. Java 환경 재설정 중..."
 sudo R CMD javareconf
 
