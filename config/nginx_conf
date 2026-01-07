@@ -6,4 +6,9 @@ server {
         alias /var/www/html/atlas;
         index index.html;
     }
+    location /WebAPI/ {
+        proxy_pass http://localhost:8080/WebAPI/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
 }
