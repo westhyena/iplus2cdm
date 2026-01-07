@@ -7,5 +7,5 @@ sudo dpkg -i packages-microsoft-prod.deb
 sudo apt-get update
 sudo apt-get install mssql-tools18 unixodbc-dev
 
-echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bash_profile
-source ~/.bash_profile
+echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bashrc
+source ~/.bashrc
