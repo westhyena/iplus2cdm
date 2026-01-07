@@ -1,5 +1,5 @@
-TRUNCATE ohdsi.source_daimon RESTART IDENTITY;
-TRUNCATE ohdsi.source RESTART IDENTITY;
+TRUNCATE ohdsi.source_daimon RESTART IDENTITY CASCADE;
+TRUNCATE ohdsi.source RESTART IDENTITY CASCADE;
 
 INSERT INTO ohdsi.source (
     source_id,           -- 유니크한 ID (자동 증가가 아니면 수동 기입)
