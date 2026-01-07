@@ -105,17 +105,8 @@ tryCatch({
     cdmVersion = cdm_version,
     numThreads = num_threads,
     createTable = TRUE,
-    runHeel = TRUE,
-    runCostAnalysis = TRUE,
     smallCellCount = 5
   )
-
-  Achilles::addConceptHierarchy(
-    connectionDetails = connectionDetails,
-    resultsDatabaseSchema = results_schema,
-    vocabDatabaseSchema = vocab_schema
-  )
-
   Achilles::createIndices(
     connectionDetails = connectionDetails,
     resultsDatabaseSchema = results_schema
