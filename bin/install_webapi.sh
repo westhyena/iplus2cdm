@@ -11,10 +11,14 @@ sudo tar xzvf apache-tomcat-8.5.100.tar.gz -C /opt/tomcat8 --strip-components=1
 
 rm apache-tomcat-8.5.100.tar.gz
 
+# tomcat 8 서비스 등록
+sudo cp config/tomcat8.service /etc/systemd/system/tomcat8.service
+sudo systemctl daemon-reload
+sudo systemctl enable tomcat8
+sudo systemctl start tomcat8
 
 # Web API Release 다운로드
 wget https://github.com/OHDSI/WebAPI/releases/download/v2.15.1/WebAPI.war
-
 sudo mv WebAPI.war /opt/tomcat8/webapps/
 
 # ----------------------------------------------------------------
@@ -51,4 +55,4 @@ sudo chmod +x "$TARGET_FILE"
 sudo chown tomcat:tomcat "$TARGET_FILE"
 
 echo "Tomcat configuration updated."
-sudo systemctl restart tomcat10
+sudo systemctl restart tomcat8

@@ -1,0 +1,24 @@
+[Unit]
+Description=Apache Tomcat 8.5 Web Application Container
+After=network.target
+
+[Service]
+Type=forking
+
+# 시스템에 tomcat 유저가 없다면 root 혹은 현재 계정으로 임시 테스트 가능합니다.
+# 보안을 위해 권장되는 유저명은 tomcat입니다.
+User=root 
+Group=root
+
+# JAVA_HOME 경로를 본인의 환경에 맞게 수정하세요.
+Environment="JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64"
+Environment="CATALINA_PID=/opt/tomcat8/temp/tomcat.pid"
+Environment="CATALINA_HOME=/opt/tomcat8"
+Environment="CATALINA_BASE=/opt/tomcat8"
+Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC"
+
+ExecStart=/opt/tomcat8/bin/startup.sh
+ExecStop=/opt/tomcat8/bin/shutdown.sh
+
+[Install]
+WantedBy=multi-user.target
