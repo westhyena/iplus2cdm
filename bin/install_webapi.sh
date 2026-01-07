@@ -1,16 +1,21 @@
 sudo apt install -y openjdk-11-jdk 
-# Tomcat 9 (WebAPI 호스팅용)
-sudo apt install -y tomcat10 tomcat10-admin
 
 sudo apt install -y postgresql-contrib
 # Node.js & NPM (ATLAS 빌드용)
 sudo apt install -y nodejs npm gettext-base
 
+# tomcat 8.5 최신 버전 다운로드
+wget https://archive.apache.org/dist/tomcat/tomcat-8/v8.5.100/bin/apache-tomcat-8.5.100.tar.gz
+sudo mkdir -p /opt/tomcat8
+sudo tar xzvf apache-tomcat-8.5.100.tar.gz -C /opt/tomcat8 --strip-components=1
+
+rm apache-tomcat-8.5.100.tar.gz
+
 
 # Web API Release 다운로드
 wget https://github.com/OHDSI/WebAPI/releases/download/v2.15.1/WebAPI.war
 
-sudo cp WebAPI.war /var/lib/tomcat10/webapps/
+sudo mv WebAPI.war /opt/tomcat8/webapps/
 
 # ----------------------------------------------------------------
 # Tomcat setenv.sh 설정 (WebAPI 환경변수 적용)
@@ -27,7 +32,7 @@ set +a
 
 # 템플릿 파일 경로
 TEMPLATE_FILE="config/webapi_setenv.sh"
-TARGET_FILE="/usr/share/tomcat10/bin/setenv.sh"
+TARGET_FILE="/opt/tomcat8/bin/setenv.sh"
 
 if [ ! -f "$TEMPLATE_FILE" ]; then
    echo "Error: Configuration template $TEMPLATE_FILE not found."
