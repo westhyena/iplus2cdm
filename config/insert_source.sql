@@ -7,8 +7,8 @@ INSERT INTO ohdsi.source (
 )
 VALUES (
     1, 
-    $CDM_SOURCE_NAME,
-    $CDM_SOURCE_ABBREVIATION,
+    '$CDM_SOURCE_NAME',
+    '$CDM_SOURCE_ABBREVIATION',
     'jdbc:postgresql://$POSTGRES_SERVER:$POSTGRES_PORT/$POSTGRES_DB',
     'postgresql'
 );
