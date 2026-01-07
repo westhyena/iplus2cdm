@@ -13,11 +13,11 @@ export hibernate_dialect="org.hibernate.dialect.PostgreSQLDialect"
 export flyway_datasource_url=$datasource_url
 export flyway_datasource_username=$datasource_username
 export flyway_datasource_password=$datasource_password
-export flyway_schemas="webapi"
+export flyway_schemas="ohdsi"
 export flyway_placeholders_ohdsiSchema="ohdsi"
 
 # 3. 기타 필수 설정
 export security_db_datasource_url=$datasource_url
 export security_db_datasource_username=$datasource_username
 export security_db_datasource_password=$datasource_password
-export spring_batch_repository_tableprefix="webapi.BATCH_"
+export spring_batch_repository_tableprefix="ohdsi.BATCH_"
