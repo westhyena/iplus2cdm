@@ -10,9 +10,12 @@ sudo mv atlas/atlas /var/www/html
 
 sudo chown -R $USER:$USER /var/www/html/atlas
 
+rm atlas.zip
+rmdir atlas
+
 # Configure atlas_config-local.js
 echo "Generating config-local.js..."
-PROJECT_ROOT="$(dirname "$0")/.."
+PROJECT_ROOT=.
 ENV_FILE="$PROJECT_ROOT/.env"
 CONFIG_TEMPLATE="$PROJECT_ROOT/config/atlas_config-local.js"
 TARGET_CONFIG="/var/www/html/atlas/js/config-local.js"
@@ -35,8 +38,10 @@ else
   echo "Error: Config template not found at $CONFIG_TEMPLATE"
 fi
 
-rm atlas.zip
-rmdir atlas
 
+echo "Installing nginx..."
+sudo apt install -y nginx
+
+sudo cp config/nginx_conf /etc/nginx/sites-available/default
 
 

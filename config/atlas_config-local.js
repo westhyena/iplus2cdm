@@ -2,7 +2,7 @@ define([], function () {
 	var configLocal = {};
 
 	configLocal.api = {
-		name: 'My Organization Name',
+		name: 'CDM',
 		url: '$ATLAS_SERVER_HOST/WebAPI/'
 	};
 

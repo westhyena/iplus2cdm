@@ -1,0 +1,9 @@
+server {
+    listen 80;
+    server_name _;
+
+    location /atlas {
+        alias /var/www/html/atlas;
+        index index.html;
+    }
+}
