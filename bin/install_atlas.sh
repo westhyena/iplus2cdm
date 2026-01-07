@@ -43,5 +43,5 @@ echo "Installing nginx..."
 sudo apt install -y nginx
 
 sudo cp config/nginx_conf /etc/nginx/sites-available/default
-
+sudo systemctl restart nginx
 
