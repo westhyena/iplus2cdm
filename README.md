@@ -43,7 +43,7 @@ mv {파일명} vocab/vocab.zip
 
 3. 압축 풀기
 ```sh
-pwsh scripts/unzip-cdm-vocab.ps1 vocab/vocab.zip
+pwsh scripts/unzip-cdm-vocab.ps1 -ArchivePath vocab/vocab.zip
 
 # vocab/extracted 폴더에 압축 해제됨.
 ```
