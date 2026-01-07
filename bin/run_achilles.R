@@ -109,7 +109,8 @@ tryCatch({
   )
   Achilles::createIndices(
     connectionDetails = connectionDetails,
-    resultsDatabaseSchema = results_schema
+    resultsDatabaseSchema = results_schema,
+    outputFolder = './'
   )
   message("Achilles execution completed successfully!")
 }, error = function(e) {
