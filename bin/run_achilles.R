@@ -104,7 +104,21 @@ tryCatch({
     sourceName = source_name,
     cdmVersion = cdm_version,
     numThreads = num_threads,
-    createTable = TRUE
+    createTable = TRUE,
+    runHeel = TRUE,
+    runCostAnalysis = TRUE,
+    smallCellCount = 5
+  )
+
+  Achilles::addConceptHierarchy(
+    connectionDetails = connectionDetails,
+    resultsDatabaseSchema = results_schema,
+    vocabDatabaseSchema = vocab_schema
+  )
+
+  Achilles::createIndices(
+    connectionDetails = connectionDetails,
+    resultsDatabaseSchema = results_schema
   )
   message("Achilles execution completed successfully!")
 }, error = function(e) {
