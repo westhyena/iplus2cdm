@@ -22,3 +22,5 @@ echo "Initializing WebAPI source in database..."
 envsubst < config/insert_source.sql | PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_SERVER -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB
 
 echo "WebAPI source initialization complete."
+
+sudo systemctl restart tomcat8
