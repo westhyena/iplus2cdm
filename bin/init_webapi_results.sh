@@ -5,7 +5,7 @@ fi
 
 # 1. WebAPI로부터 SQL 받아오기
 # dialect: postgresql, schema: 결과스키마, vocabSchema: 보카스키마
-SQL_URL="http://localhost:8080/WebAPI/ddl/results?dialect=postgresql&schema=achilles&vocabSchema=public&initConceptHierarchy=true"
+SQL_URL="http://localhost:8080/WebAPI/ddl/results?dialect=postgresql&schema=$OMOP_ACHILLES_RESULTS_SCHEMA&vocabSchema=$OMOP_CDM_SCHEMA&initConceptHierarchy=true"
 
 echo "Fetching DDL from WebAPI..."
 curl -s $SQL_URL > init_hierarchy.sql
