@@ -13,7 +13,7 @@ curl -s $SQL_URL > init_hierarchy.sql
 # 2. psql을 이용해 바로 실행
 echo "Executing SQL on PostgreSQL..."
 
-psql -h localhost -U $POSTGRES_USER -d $POSTGRES_DB -f init_hierarchy.sql
+PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -d $POSTGRES_DB -f init_hierarchy.sql
 
 rm init_hierarchy.sql
 
