@@ -105,7 +105,12 @@ tryCatch({
     cdmVersion = cdm_version,
     numThreads = num_threads,
     createTable = TRUE,
-    smallCellCount = 5
+    smallCellCount = 5,
+  )
+  Achilles::optimizeAtlasCache(
+    connectionDetails = connectionDetails,
+    resultsDatabaseSchema = results_schema,
+    vocabDatabaseSchema = vocab_schema,
   )
   Achilles::createIndices(
     connectionDetails = connectionDetails,
