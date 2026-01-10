@@ -20,10 +20,10 @@ rm init_hierarchy.sql
 
 
 echo =========== Achilles ===========
-SQL_URL=http://localhost:8080/WebAPI/ddl/achilles?dialect=postgresql&schema=$OMOP_ACHILLES_RESULTS_SCHEMA&vocabSchema=$OMOP_CDM_SCHEMA
+SQL_URL2="http://localhost:8080/WebAPI/ddl/achilles?dialect=postgresql&schema=$OMOP_ACHILLES_RESULTS_SCHEMA&vocabSchema=$OMOP_CDM_SCHEMA"
 
 echo "Fetching DDL from WebAPI..."
-curl $SQL_URL > init_concept_count.sql
+curl $SQL_URL2 > init_concept_count.sql
 
 # 2. psql을 이용해 바로 실행
 echo "Executing SQL on PostgreSQL..."
