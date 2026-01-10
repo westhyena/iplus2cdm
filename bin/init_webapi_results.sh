@@ -9,7 +9,7 @@ echo =========== Results ===========
 SQL_URL="http://localhost:8080/WebAPI/ddl/results?dialect=postgresql&schema=$OMOP_ACHILLES_RESULTS_SCHEMA&vocabSchema=$OMOP_CDM_SCHEMA&initConceptHierarchy=true"
 
 echo "Fetching DDL from WebAPI..."
-curl -s $SQL_URL > init_hierarchy.sql
+curl $SQL_URL > init_hierarchy.sql
 
 # 2. psql을 이용해 바로 실행
 echo "Executing SQL on PostgreSQL..."
@@ -23,7 +23,7 @@ echo =========== Achilles ===========
 SQL_URL=http://localhost:8080/WebAPI/ddl/achilles?dialect=postgresql&schema=$OMOP_ACHILLES_RESULTS_SCHEMA&vocabSchema=$OMOP_CDM_SCHEMA
 
 echo "Fetching DDL from WebAPI..."
-curl -s $SQL_URL > init_concept_count.sql
+curl $SQL_URL > init_concept_count.sql
 
 # 2. psql을 이용해 바로 실행
 echo "Executing SQL on PostgreSQL..."
