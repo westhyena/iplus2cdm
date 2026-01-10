@@ -20,7 +20,7 @@ rm init_hierarchy.sql
 
 
 echo =========== Achilles ===========
-SQL_URL = http://localhost:8080/WebAPI/ddl/achilles?dialect=postgresql&schema=$OMOP_ACHILLES_RESULTS_SCHEMA&vocabSchema=$OMOP_CDM_SCHEMA
+SQL_URL=http://localhost:8080/WebAPI/ddl/achilles?dialect=postgresql&schema=$OMOP_ACHILLES_RESULTS_SCHEMA&vocabSchema=$OMOP_CDM_SCHEMA
 
 echo "Fetching DDL from WebAPI..."
 curl -s $SQL_URL > init_concept_count.sql
