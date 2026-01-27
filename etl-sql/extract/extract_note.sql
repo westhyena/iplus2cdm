@@ -12,7 +12,6 @@ DECLARE @MinId INT = $(MinId);
     PTNTIDNO,
     [진료일자] AS note_date,
     'OP' AS source_type,
-    NULLIF(LTRIM(RTRIM([일련번호])),'') AS serial_no,
     [내용] AS note_text
   FROM [$(SrcSchema)].[OCSPRES]
   WHERE PTNTIDNO IS NOT NULL
@@ -23,7 +22,6 @@ DECLARE @MinId INT = $(MinId);
     PTNTIDNO,
     [진료일자] AS note_date,
     'IP' AS source_type,
-    NULLIF(LTRIM(RTRIM([일련번호])),'') AS serial_no,
     [내용] AS note_text
   FROM [$(SrcSchema)].[OCSPRESI]
   WHERE PTNTIDNO IS NOT NULL
@@ -44,7 +42,7 @@ DECLARE @MinId INT = $(MinId);
     r.note_text,
     32678 AS encoding_concept_id, -- UTF-8 (Standard)
     4175771 AS language_concept_id, -- User spec
-    r.serial_no AS note_source_value
+    NULL AS note_source_value
   FROM raw_data r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
   LEFT JOIN visit_map vm ON vm.ptntidno = r.PTNTIDNO 
