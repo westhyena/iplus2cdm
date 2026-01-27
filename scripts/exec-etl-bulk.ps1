@@ -189,6 +189,7 @@ function Invoke-PsqlCopy {
         "observation" { $cols = "" }
         "measurement" { $cols = "(measurement_id, person_id, measurement_concept_id, measurement_date, measurement_datetime, measurement_time, measurement_type_concept_id, operator_concept_id, value_as_number, value_as_concept_id, unit_concept_id, range_low, range_high, provider_id, visit_occurrence_id, visit_detail_id, measurement_source_value, measurement_source_concept_id, unit_source_value, unit_source_concept_id, value_source_value, measurement_event_id, meas_event_field_concept_id)" }
         "cost" { $cols = "(cost_id, cost_event_id, cost_domain_id, cost_type_concept_id, currency_concept_id, total_cost, total_charge, total_paid, paid_by_payer, paid_by_patient, paid_patient_copay, paid_patient_coinsurance, paid_patient_deductible, paid_by_primary, paid_ingredient_cost, paid_dispensing_fee, payer_plan_period_id, amount_allowed, revenue_code_concept_id, revenue_code_source_value, drg_concept_id, drg_source_value)" }
+        "note" { $cols = "(note_id, person_id, note_date, note_datetime, note_type_concept_id, note_class_concept_id, note_title, note_text, encoding_concept_id, language_concept_id, provider_id, visit_occurrence_id, visit_detail_id, note_source_value, note_event_id, note_event_field_concept_id)" }
     }
     
     # Construct COPY command
@@ -297,7 +298,8 @@ function Invoke-TruncateTables {
         "condition_occurrence", 
         "observation_period", 
         "visit_occurrence", 
-        "person"
+        "person",
+        "note"
     )
     
     foreach ($t in $tables) {
@@ -327,7 +329,8 @@ $Domains = @(
     @{ Name="device_exposure"; Extract="etl-sql/extract/extract_device_exposure.sql"; Table="device_exposure"; IdCol="device_exposure_id" },
     @{ Name="measurement"; Extract="etl-sql/extract/extract_measurement.sql"; Table="measurement"; IdCol="measurement_id" }, 
     @{ Name="observation"; Extract="etl-sql/extract/extract_observation.sql"; Table="observation"; IdCol="observation_id" },
-    @{ Name="cost"; Extract="etl-sql/extract/extract_cost.sql"; Table="cost"; IdCol="" }
+    @{ Name="cost"; Extract="etl-sql/extract/extract_cost.sql"; Table="cost"; IdCol="" },
+    @{ Name="note"; Extract="etl-sql/extract/extract_note.sql"; Table="note"; IdCol="note_id" }
 )
 
 foreach ($d in $Domains) {
