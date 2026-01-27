@@ -35,7 +35,7 @@ DECLARE @MinId INT = $(MinId);
     TRY_CONVERT(date, r.note_date) AS note_date,
     -- Combine date and time if time available, otherwise just date as datetime? 
     -- User didn't specify time col, so use date cast to datetime (00:00:00)
-    TRY_CONVERT(datetime, r.note_date) AS note_datetime,
+    NULL AS note_datetime,
     32817 AS note_type_concept_id, -- User spec
     706391 AS note_class_concept_id, -- User spec
     '' AS note_title, -- User spec
