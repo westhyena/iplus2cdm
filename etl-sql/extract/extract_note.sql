@@ -12,7 +12,7 @@ DECLARE @MinId INT = $(MinId);
     PTNTIDNO,
     [진료일자] AS note_date,
     'OP' AS source_type,
-    [내용] AS note_text
+    REPLACE(REPLACE(REPLACE(REPLACE([내용], '\', '\\'), CHAR(13), '\r'), CHAR(10), '\n'), '|', '\|') AS note_text
   FROM [$(SrcSchema)].[OCSPRES]
   WHERE PTNTIDNO IS NOT NULL
   
@@ -22,7 +22,7 @@ DECLARE @MinId INT = $(MinId);
     PTNTIDNO,
     [진료일자] AS note_date,
     'IP' AS source_type,
-    [내용] AS note_text
+    REPLACE(REPLACE(REPLACE(REPLACE([내용], '\', '\\'), CHAR(13), '\r'), CHAR(10), '\n'), '|', '\|') AS note_text
   FROM [$(SrcSchema)].[OCSPRESI]
   WHERE PTNTIDNO IS NOT NULL
 ), enriched AS (
