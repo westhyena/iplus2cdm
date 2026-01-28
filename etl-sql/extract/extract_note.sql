@@ -38,7 +38,7 @@ DECLARE @MinId INT = $(MinId);
     NULL AS note_datetime,
     32817 AS note_type_concept_id, -- User spec
     706391 AS note_class_concept_id, -- User spec
-    '' AS note_title, -- User spec
+    NULL AS note_title, -- User spec
     r.note_text,
     32678 AS encoding_concept_id, -- UTF-8 (Standard)
     4175771 AS language_concept_id, -- User spec
