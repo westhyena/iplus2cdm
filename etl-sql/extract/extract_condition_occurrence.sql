@@ -5,6 +5,8 @@ SET NOCOUNT ON;
   SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
+), provider_map AS (
+  SELECT userid, provider_id FROM [$(StagingSchema)].provider_id_map
 ), hira_map AS (
   SELECT DISTINCT
     UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
@@ -22,6 +24,7 @@ SET NOCOUNT ON;
     o.[진료일자],
     o.[상병구분],
     o.[상병코드],
+    o.[담당의] AS doctor_src,
     o.row_i AS row_i
   FROM  [$(SrcSchema)].[OCSDISE] o
   WHERE o.PTNTIDNO IS NOT NULL
@@ -35,6 +38,7 @@ SET NOCOUNT ON;
     i.[진료일자],
     i.[상병구분],
     i.[상병코드],
+    i.[담당의] AS doctor_src,
     i.row_i AS row_i
   FROM  [$(SrcSchema)].[OCSDISEI] i
   WHERE i.PTNTIDNO IS NOT NULL
@@ -53,6 +57,7 @@ SET NOCOUNT ON;
     CASE WHEN TRY_CONVERT(int, r.row_i) = 0 THEN 32902 ELSE 32908 END AS condition_status_concept_id,
     NULLIF(LTRIM(RTRIM(CAST(r.[상병코드] AS varchar(50)))), '') AS condition_source_value,
     UPPER(LTRIM(RTRIM(CAST(r.[상병코드] AS varchar(200))))) AS normalized_code,
+    NULLIF(LTRIM(RTRIM(CAST(r.doctor_src AS varchar(100)))), '') AS doctor_userid,
     'OP' AS src
   FROM op_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
@@ -67,6 +72,7 @@ SET NOCOUNT ON;
     CASE WHEN TRY_CONVERT(int, r.row_i) = 0 THEN 32902 ELSE 32908 END AS condition_status_concept_id,
     NULLIF(LTRIM(RTRIM(CAST(r.[상병코드] AS varchar(50)))), '') AS condition_source_value,
     UPPER(LTRIM(RTRIM(CAST(r.[상병코드] AS varchar(200))))) AS normalized_code,
+    NULLIF(LTRIM(RTRIM(CAST(r.doctor_src AS varchar(100)))), '') AS doctor_userid,
     'IP' AS src
   FROM ip_raw r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
@@ -98,11 +104,12 @@ SELECT
   32817 AS condition_type_concept_id,
   m.condition_status_concept_id,
   NULL AS stop_reason,
-  NULL AS provider_id,
+  pvm.provider_id,
   m.visit_occurrence_id,
   NULL AS visit_detail_id,
   m.condition_source_value,
   m.source_concept_id AS condition_source_concept_id,
   NULL AS condition_status_source_value
 FROM mapped m
+LEFT JOIN provider_map pvm ON pvm.userid = m.doctor_userid
 WHERE m.map_rank = 1;

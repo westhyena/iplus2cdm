@@ -42,7 +42,7 @@
 | visit_end_date | Date | Y | `OTPTMDDT` / `INPTDSDT` | 진료/퇴원 일자 |
 | visit_end_datetime | Datetime | Y | `OTPTMDTM` / `INPTDSTM` | 진료/퇴원 일자 + 시간(HHMM) 결합 (시간 없으면 00:00) |
 | visit_type_concept_id | Integer | Y | - | 32817 (EHR) |
-| provider_id | Integer | N | - | NULL |
+| provider_id | Integer | N | `OTPTDOCT` / `IPHSDOCT` | 외래: 진료의사, 입원: 재원이력(`PMIIPHSH`) 진료의사 → `provider_id_map` |
 | care_site_id | Integer | N | - | NULL |
 | visit_source_value | String | N | `OTPTMETP` | 외래: 진료과목코드 등 (Aggregated)<br>입원: NULL |
 | visit_source_concept_id | Integer | N | - | NULL |
@@ -68,7 +68,7 @@
 | condition_type_concept_id | Integer | Y | - | 32817 (EHR) |
 | condition_status_concept_id | Integer | N | `row_i` | 0이면 32902(주상병), 그외 32908(부상병) |
 | stop_reason | String | N | - | NULL |
-| provider_id | Integer | N | - | NULL |
+| provider_id | Integer | N | `담당의` | `provider_id_map` 매핑 |
 | visit_occurrence_id | Integer | N | `visit_occurrence_map` | 방문 ID 매핑 |
 | visit_detail_id | Integer | N | - | NULL |
 | condition_source_value | String | N | `상병코드` | 원본 상병코드 |
@@ -98,7 +98,7 @@
 | sig | String | N | - | NULL |
 | route_concept_id | Integer | N | - | NULL |
 | lot_number | String | N | - | NULL |
-| provider_id | Integer | N | - | NULL |
+| provider_id | Integer | N | `담당의` | `provider_id_map` 매핑 |
 | visit_occurrence_id | Integer | N | `visit_occurrence_map` | 방문 ID 매핑 |
 | visit_detail_id | Integer | N | - | NULL |
 | drug_source_value | String | N | `청구코드` | |
@@ -126,7 +126,7 @@
 | unit_concept_id | Integer | N | - | NULL |
 | range_low | Float | N | - | NULL |
 | range_high | Float | N | - | NULL |
-| provider_id | Integer | N | - | NULL |
+| provider_id | Integer | N | `담당의` | 청구코드 소스만. `INFLABD` 검사는 의사 정보 없음(NULL) |
 | visit_occurrence_id | Integer | N | `visit_occurrence_map` | 방문 ID 매핑 |
 | visit_detail_id | Integer | N | - | NULL |
 | measurement_source_value | String | N | `LABNM`-`ItemName`... / `청구코드` | 소스 식별 값 |
@@ -155,7 +155,7 @@
 | value_as_concept_id | Integer | N | - | NULL |
 | qualifier_concept_id | Integer | N | - | NULL |
 | unit_concept_id | Integer | N | - | NULL |
-| provider_id | Integer | N | - | NULL |
+| provider_id | Integer | N | `담당의` | `provider_id_map` 매핑 |
 | visit_occurrence_id | Integer | N | `visit_occurrence_map` | 방문 ID 매핑 |
 | visit_detail_id | Integer | N | - | NULL |
 | observation_source_value | String | N | `청구코드` | |
@@ -181,7 +181,7 @@
 | procedure_type_concept_id | Integer | Y | - | 32817 (EHR) |
 | modifier_concept_id | Integer | N | - | NULL |
 | quantity | Integer | N | - | NULL |
-| provider_id | Integer | N | - | NULL |
+| provider_id | Integer | N | `담당의` | `provider_id_map` 매핑 |
 | visit_occurrence_id | Integer | N | `visit_occurrence_map` | 방문 ID 매핑 |
 | visit_detail_id | Integer | N | - | NULL |
 | procedure_source_value | String | N | `청구코드` | |
@@ -206,7 +206,7 @@
 | unique_device_id | String | N | - | NULL |
 | production_id | String | N | - | NULL |
 | quantity | Integer | N | - | NULL |
-| provider_id | Integer | N | - | NULL |
+| provider_id | Integer | N | `담당의` | `provider_id_map` 매핑 |
 | visit_occurrence_id | Integer | N | `visit_occurrence_map` | 방문 ID 매핑 |
 | visit_detail_id | Integer | N | - | NULL |
 | device_source_value | String | N | `청구코드` | |
@@ -246,3 +246,24 @@
 | observation_period_start_date | Date | Y | `visit_start_date` | 환자의 최초 방문일 |
 | observation_period_end_date | Date | Y | `visit_end_date` | 환자의 마지막 방문일 |
 | period_type_concept_id | Integer | Y | - | 32817 (EHR) |
+
+## 11. PROVIDER (의료 제공자)
+
+**소스 테이블:** `PICUSERM` (사용자정보)
+**대상 선정:** 임상 이벤트가 참조하는 사용자 계정만 등록 — `OCSSLIP`/`OCSSLIPI`/`OCSDISE`/`OCSDISEI`의 `담당의`, `PMOOTPTH.OTPTDOCT`, `PMIIPHSH.IPHSDOCT`, `PMCPTNT.PTNTDOCT` (staging `provider_id_map`으로 ID 부여, `PICUSERM`에 없는 계정도 포함)
+
+| 컬럼명 | 컬럼 타입 | 필수 여부 | 소스 | 비고 |
+| :--- | :--- | :--- | :--- | :--- |
+| provider_id | Integer | Y | `provider_id_map` | `ROW_NUMBER()`로 생성된 ID 매핑 사용 |
+| provider_name | String | N | `USERNAME` | 없으면 사용자 ID로 대체 |
+| npi | String | N | - | NULL |
+| dea | String | N | - | NULL |
+| specialty_concept_id | Integer | N | - | 0 (Unknown) |
+| care_site_id | Integer | N | - | NULL |
+| year_of_birth | Integer | N | `USERBIDT` | 생일 앞 4자리 |
+| gender_concept_id | Integer | N | - | 0 (Unknown) |
+| provider_source_value | String | N | `USERID` | 사용자 계정 ID |
+| specialty_source_value | String | N | `USERDEPT` | 진료과 코드 |
+| specialty_source_concept_id | Integer | N | - | NULL |
+| gender_source_value | String | N | - | NULL |
+| gender_source_concept_id | Integer | N | - | NULL |

@@ -230,6 +230,7 @@ if (Test-Path $measModule) { . $measModule }
 # 1.1 Ensure Map Tables Exist (Run DDLs)
 $StgDDLs = @(
     "etl-sql/stg/create_person_id_map.sql",
+    "etl-sql/stg/create_provider_id_map.sql",
     "etl-sql/stg/create_visit_occurrence_map.sql",
     "etl-sql/stg/create_drug_exposure_map.sql",
     "etl-sql/stg/create_procedure_occurrence_map.sql",
@@ -248,6 +249,7 @@ foreach ($f in $StgDDLs) {
 # 1.2 Populate Maps
 $MapFiles = @(
     "etl-sql/map/generate_person_map.sql",
+    "etl-sql/map/generate_provider_map.sql",
     "etl-sql/map/generate_visit_occurrence_map.sql",
     "etl-sql/map/generate_drug_exposure_map.sql",
     "etl-sql/map/generate_procedure_occurrence_map.sql",
@@ -297,9 +299,10 @@ function Invoke-TruncateTables {
         "drug_exposure", 
         "condition_occurrence", 
         "observation_period", 
-        "visit_occurrence", 
+        "visit_occurrence",
         "person",
-        "note"
+        "note",
+        "provider"
     )
     
     foreach ($t in $tables) {
@@ -320,6 +323,7 @@ if ($FullReload) {
 
 Write-Host "=== Phase 2: Bulk Extraction & Loading ===" -ForegroundColor Cyan
 $Domains = @(
+    @{ Name="provider"; Extract="etl-sql/extract/extract_provider.sql"; Table="provider"; IdCol="provider_id" },
     @{ Name="person"; Extract="etl-sql/extract/extract_person.sql"; Table="person"; IdCol="person_id" },
     @{ Name="visit_occurrence"; Extract="etl-sql/extract/extract_visit_occurrence.sql"; Table="visit_occurrence"; IdCol="visit_occurrence_id" },
     @{ Name="observation_period"; Extract="etl-sql/extract/extract_observation_period.sql"; Table="observation_period"; IdCol="observation_period_id" }, 

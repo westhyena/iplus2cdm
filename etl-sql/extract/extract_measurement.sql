@@ -5,6 +5,8 @@ SET NOCOUNT ON;
   SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
 ), visit_map AS (
   SELECT ptntidno, [date], [source], visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
+), provider_map AS (
+  SELECT userid, provider_id FROM [$(StagingSchema)].provider_id_map
 ), meas_map AS (
   SELECT
     UPPER(LTRIM(RTRIM(LABNM))) AS LABNM,
@@ -144,7 +146,8 @@ SET NOCOUNT ON;
     o.[청구코드] AS claim_code,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),'')) AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no,
-    UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200))))) AS normalized_code
+    UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(200))))) AS normalized_code,
+    o.[담당의] AS doctor_src
   FROM [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
@@ -155,7 +158,8 @@ SET NOCOUNT ON;
     i.[청구코드] AS claim_code,
     0 AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no,
-    UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200))))) AS normalized_code
+    UPPER(LTRIM(RTRIM(CAST(i.[청구코드] AS varchar(200))))) AS normalized_code,
+    i.[담당의] AS doctor_src
   FROM [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
@@ -186,7 +190,7 @@ SET NOCOUNT ON;
     NULL AS unit_concept_id,
     NULL AS range_low,
     NULL AS range_high,
-    NULL AS provider_id,
+    NULLIF(LTRIM(RTRIM(CAST(r.doctor_src AS varchar(100)))), '') AS doctor_userid,
     NULL AS visit_detail_id,
     NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS measurement_source_value,
     r.normalized_code,
@@ -213,7 +217,7 @@ SET NOCOUNT ON;
     NULL AS unit_concept_id,
     NULL AS range_low,
     NULL AS range_high,
-    NULL AS provider_id,
+    NULLIF(LTRIM(RTRIM(CAST(r.doctor_src AS varchar(100)))), '') AS doctor_userid,
     NULL AS visit_detail_id,
     NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS measurement_source_value,
     r.normalized_code,
@@ -251,7 +255,7 @@ SET NOCOUNT ON;
     u.unit_concept_id,
     u.range_low,
     u.range_high,
-    u.provider_id,
+    pvm.provider_id,
     u.visit_occurrence_id,
     u.visit_detail_id,
     u.measurement_source_value,
@@ -262,6 +266,7 @@ SET NOCOUNT ON;
     NULL AS measurement_event_id,
     NULL AS meas_event_field_concept_id
   FROM code_mapped u
+  LEFT JOIN provider_map pvm ON pvm.userid = u.doctor_userid
   JOIN [$(StagingSchema)].measurement_map k
     ON k.ptntidno = u.k_ptntidno
     AND k.[date] = u.k_date

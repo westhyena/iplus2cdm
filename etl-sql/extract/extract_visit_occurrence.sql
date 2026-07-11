@@ -5,14 +5,23 @@ SET NOCOUNT ON;
   SELECT ptntidno, person_id FROM [$(StagingSchema)].person_id_map
 ), visit_map AS (
   SELECT ptntidno, date, source, visit_occurrence_id FROM [$(StagingSchema)].visit_occurrence_map
+), provider_map AS (
+  SELECT userid, provider_id FROM [$(StagingSchema)].provider_id_map
 ), op_raw AS (
   SELECT
     o.PTNTIDNO,
     o.OTPTMDDT,
     o.OTPTMDTM,
-    o.OTPTMETP
+    o.OTPTMETP,
+    o.OTPTDOCT
   FROM  [$(SrcSchema)].[PMOOTPTH] o
   WHERE o.PTNTIDNO IS NOT NULL
+), ip_doctor AS (
+  -- 입원 진료의사는 재원이력(PMIIPHSH)에 기록됨 (입원건당 대표값)
+  SELECT h.PTNTIDNO, h.IPHSADDT,
+         MAX(NULLIF(LTRIM(RTRIM(h.IPHSDOCT)), '')) AS doctor_userid
+  FROM [$(SrcSchema)].[PMIIPHSH] h
+  GROUP BY h.PTNTIDNO, h.IPHSADDT
 ), ip_raw AS (
   SELECT
     i.PTNTIDNO,
@@ -47,7 +56,7 @@ SET NOCOUNT ON;
       ELSE TRY_CONVERT(datetime, r.OTPTMDDT)
     END) AS visit_end_datetime,
     32817 AS visit_type_concept_id,
-    NULL AS provider_id,
+    MAX(NULLIF(LTRIM(RTRIM(r.OTPTDOCT)), '')) AS doctor_userid,
     NULL AS care_site_id,
     -- 모든 값을 콤마(,)로 연결하여 표시
     STRING_AGG(NULLIF(LTRIM(RTRIM(r.OTPTMETP)), ''), ',') WITHIN GROUP (ORDER BY r.OTPTMETP) AS visit_source_value,
@@ -84,7 +93,7 @@ SET NOCOUNT ON;
       ELSE TRY_CONVERT(datetime, r.INPTDSDT)
     END) AS visit_end_datetime, -- 퇴원일시 최댓값
     32817 AS visit_type_concept_id,
-    NULL AS provider_id,
+    MAX(d.doctor_userid) AS doctor_userid,
     NULL AS care_site_id,
     NULL AS visit_source_value,
     NULL AS visit_source_concept_id,
@@ -99,6 +108,10 @@ SET NOCOUNT ON;
     vm.ptntidno = r.PTNTIDNO
     AND vm.date = r.INPTADDT
     AND vm.source = 'IP'
+  LEFT JOIN ip_doctor d
+  ON
+    d.PTNTIDNO = r.PTNTIDNO
+    AND d.IPHSADDT = r.INPTADDT
   GROUP BY
     vm.visit_occurrence_id,
     pm.person_id
@@ -115,7 +128,7 @@ SELECT v.visit_occurrence_id,
        COALESCE(v.visit_end_date, v.visit_start_date) AS visit_end_date,
        v.visit_end_datetime,
        v.visit_type_concept_id,
-       v.provider_id,
+       pvm.provider_id,
        v.care_site_id,
        v.visit_source_value,
        v.visit_source_concept_id,
@@ -124,4 +137,5 @@ SELECT v.visit_occurrence_id,
        v.discharged_to_concept_id,
        v.discharged_to_source_value,
        NULL AS preceding_visit_occurrence_id
-FROM all_visits v;
+FROM all_visits v
+LEFT JOIN provider_map pvm ON pvm.userid = v.doctor_userid;

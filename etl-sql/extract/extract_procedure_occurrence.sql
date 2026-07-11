@@ -16,6 +16,8 @@ DECLARE @MinId INT = $(MinId);
   SELECT ptntidno, [date], [source], serial_no, order_no, map_index, procedure_occurrence_id 
   FROM [$(StagingSchema)].procedure_occurrence_map
   WHERE procedure_occurrence_id > $(MinId)  -- Optimization: Incremental Extract
+), provider_map AS (
+  SELECT userid, provider_id FROM [$(StagingSchema)].provider_id_map
 ), hira_proc_map AS (
   SELECT DISTINCT
     UPPER(LTRIM(RTRIM(CAST(m.LOCAL_CD1 AS varchar(200))))) AS code_norm,
@@ -42,7 +44,8 @@ DECLARE @MinId INT = $(MinId);
     o.[진료일자] AS svc_date,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),'')) AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no,
-    o.[청구코드] AS claim_code
+    o.[청구코드] AS claim_code,
+    o.[담당의] AS doctor_src
   FROM [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, o.[진료일자]) IS NOT NULL
@@ -52,7 +55,8 @@ DECLARE @MinId INT = $(MinId);
     i.[진료일자] AS svc_date,
     0 AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no,
-    i.[청구코드] AS claim_code
+    i.[청구코드] AS claim_code,
+    i.[담당의] AS doctor_src
   FROM [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
     AND TRY_CONVERT(date, i.[진료일자]) IS NOT NULL
@@ -93,6 +97,7 @@ DECLARE @MinId INT = $(MinId);
     NULL AS procedure_datetime,
     NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS procedure_source_value,
     UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
+    NULLIF(LTRIM(RTRIM(CAST(r.doctor_src AS varchar(100)))), '') AS doctor_userid,
     'OP' AS src
   FROM op_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
@@ -110,6 +115,7 @@ DECLARE @MinId INT = $(MinId);
     NULL AS procedure_datetime,
     NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS procedure_source_value,
     UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
+    NULLIF(LTRIM(RTRIM(CAST(r.doctor_src AS varchar(100)))), '') AS doctor_userid,
     'IP' AS src
   FROM ip_filtered r
   JOIN person_map pm ON pm.ptntidno = r.PTNTIDNO
@@ -141,14 +147,15 @@ SELECT
     32817 AS procedure_type_concept_id,
     NULL AS modifier_concept_id,
     NULL AS quantity,
-    NULL AS provider_id,
+    pvm.provider_id,
     m.visit_occurrence_id,
     NULL AS visit_detail_id,
     m.procedure_source_value,
     m.source_concept_id AS procedure_source_concept_id,
     NULL AS modifier_source_value
   FROM mapped m
-  JOIN keys_map km 
+  LEFT JOIN provider_map pvm ON pvm.userid = m.doctor_userid
+  JOIN keys_map km
     ON km.ptntidno = m.k_ptntidno
     AND km.[date] = m.k_date
     AND km.[source] = m.k_source
