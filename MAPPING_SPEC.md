@@ -217,8 +217,9 @@
 
 ## 9. COST (비용 정보)
 
-**소스 테이블:** `OCSSLIP`, `OCSSLIPI`
+**소스 테이블:** `OCSSLIP`, `OCSSLIPI` (라인 금액), `PAOSUNAB`, `PAISUNAB` (수납/청구 헤더)
 **연결:** Procedure, Drug, Device, Observation 테이블의 ID와 연결
+**배분 방식:** 수납 헤더 금액을 같은 수납 단위(외래: 환자+수납일자+일련번호, 입원: 입원건)의 슬립 라인에 `금액` 비례로 배분 (가중치 w = 라인 금액 / 단위 내 금액 합). 미수 = `total_charge - total_paid` = w × (수납할금액 − 실수납액)
 
 | 컬럼명 | 컬럼 타입 | 필수 여부 | 소스 | 비고 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -227,13 +228,18 @@
 | cost_domain_id | String | Y | - | 'Procedure', 'Drug', 'Device', 'Observation' |
 | cost_type_concept_id | Integer | Y | - | 32817 (EHR) |
 | currency_concept_id | Integer | Y | - | 44818598 (KRW) |
-| total_cost | Float | N | `금액` | |
+| total_cost | Float | N | `금액` | 총 발생액 (공단분 포함) |
+| total_charge | Float | N | `청구액`+`수납할금액` | w 배분. 공단 청구 + 환자 청구 |
+| total_paid | Float | N | `청구액`+`실수납액` | w 배분. 공단 청구는 수납 간주 |
+| paid_by_payer | Float | N | `청구액` | w 배분. 공단 청구분 |
+| paid_by_patient | Float | N | `실수납액` | w 배분. 환자 실수납 |
 | payer_plan_period_id | Integer | N | - | NULL |
 | amount_allowed | Float | N | - | NULL |
-| payer_source_value | String | N | - | NULL |
 | revenue_code_concept_id | Integer | N | - | NULL |
 | drg_concept_id | Integer | N | - | NULL |
 | drg_source_value | String | N | - | NULL |
+
+수납 헤더 미매칭 라인(~0.04%)은 배분 컬럼이 NULL로 남고 `total_cost`만 유지된다.
 
 ## 10. OBSERVATION_PERIOD (관찰 기간)
 
