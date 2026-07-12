@@ -200,6 +200,31 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
    AND km.order_no  = u.k_order_no
    AND km.map_index = 1
   WHERE u.amount IS NOT NULL AND u.amount <> 0
+
+  UNION ALL
+
+  -- 5. Measurement Costs (청구코드 소스만 — LAB(INFLABD) 검사는 슬립 금액이 없음)
+  SELECT
+    km.measurement_id AS cost_event_id,
+    'Measurement' AS cost_domain_id,
+    32817         AS cost_type_concept_id,
+    44818598      AS currency_concept_id,
+    u.amount      AS total_cost,
+    u.total_charge, u.total_paid, u.paid_by_payer, u.paid_by_patient,
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+  FROM slip_costs u
+  JOIN [$(StagingSchema)].measurement_map km
+    ON km.ptntidno = u.k_ptntidno
+   AND km.[date]   = u.k_date
+   AND km.[source] = u.k_source
+   AND km.mk_lab_id = ''
+   AND km.mk_item_no = ''
+   AND km.mk_lr = ''
+   AND km.mk_seq = ''
+   AND km.mk_serial = u.k_serial_no
+   AND km.mk_order  = u.k_order_no
+   AND km.map_index = 1
+  WHERE u.amount IS NOT NULL AND u.amount <> 0
 )
 SELECT
   ROW_NUMBER() OVER (ORDER BY cost_domain_id, cost_event_id) AS cost_id,

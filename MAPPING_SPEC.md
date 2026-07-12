@@ -218,14 +218,14 @@
 ## 9. COST (비용 정보)
 
 **소스 테이블:** `OCSSLIP`, `OCSSLIPI` (라인 금액), `PAOSUNAB`, `PAISUNAB` (수납/청구 헤더)
-**연결:** Procedure, Drug, Device, Observation 테이블의 ID와 연결
+**연결:** Procedure, Drug, Device, Observation, Measurement(청구코드 소스) 테이블의 ID와 연결
 **배분 방식:** 수납 헤더 금액을 같은 수납 단위(외래: 환자+수납일자+일련번호, 입원: 입원건)의 슬립 라인에 `금액` 비례로 배분 (가중치 w = 라인 금액 / 단위 내 금액 합). 미수 = `total_charge - total_paid` = w × (수납할금액 − 실수납액)
 
 | 컬럼명 | 컬럼 타입 | 필수 여부 | 소스 | 비고 |
 | :--- | :--- | :--- | :--- | :--- |
 | cost_id | Integer | Y | Sequence | 자동 증가 ID |
 | cost_event_id | Integer | Y | 각 도메인 ID | Procedure/Drug/Device/Observation ID |
-| cost_domain_id | String | Y | - | 'Procedure', 'Drug', 'Device', 'Observation' |
+| cost_domain_id | String | Y | - | 'Procedure', 'Drug', 'Device', 'Observation', 'Measurement' |
 | cost_type_concept_id | Integer | Y | - | 32817 (EHR) |
 | currency_concept_id | Integer | Y | - | 44818598 (KRW) |
 | total_cost | Float | N | `금액` | 총 발생액 (공단분 포함) |
