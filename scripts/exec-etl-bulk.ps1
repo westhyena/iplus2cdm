@@ -246,23 +246,10 @@ foreach ($f in $StgDDLs) {
     Invoke-SqlCmdFile (Join-Path $Root $f)
 }
 
-# 1.2 Populate Maps
-$MapFiles = @(
-    "etl-sql/map/generate_person_map.sql",
-    "etl-sql/map/generate_provider_map.sql",
-    "etl-sql/map/generate_visit_occurrence_map.sql",
-    "etl-sql/map/generate_drug_exposure_map.sql",
-    "etl-sql/map/generate_procedure_occurrence_map.sql",
-    "etl-sql/map/generate_device_exposure_map.sql",
-    "etl-sql/map/generate_observation_map.sql",
-    "etl-sql/map/generate_measurement_map.sql"
-)
-
-foreach ($f in $MapFiles) {
-    Invoke-SqlCmdFile (Join-Path $Root $f)
-}
-
-# 1.3 Populate Hira/Measurement Maps (PowerShell Modules)
+# 1.2 Populate Hira/Measurement Maps (PowerShell Modules)
+# 반드시 map generate(1.3)보다 먼저 실행되어야 한다.
+# create_hira_map.sql이 매 실행 hira_map을 DROP/재생성하므로, 여기서 다시 채우기 전에
+# generate를 돌리면 hira 매핑으로만 잡히는 코드(검사 E-코드 등)가 map에서 통째로 빠진다.
 # Construct SqlCmd Args similar to helpers but as a reusable array for modules
 $SqlCmdBaseArgs = @("-S", $SourceServer, "-d", $SourceDatabase, "-b", "-I", "-C")
 if ($SourceUser) { $SqlCmdBaseArgs += @("-U", $SourceUser, "-P", $SourcePassword) }
@@ -280,6 +267,22 @@ if (Get-Command Invoke-LoadHiraMap -ErrorAction SilentlyContinue) {
 if (Get-Command Invoke-LoadMeasurementVocabularyMap -ErrorAction SilentlyContinue) {
     Write-Host "Loading Measurement Vocabulary Map from $MeasMapPath ..."
     Invoke-LoadMeasurementVocabularyMap -tsvPath $MeasMapPath -stagingSchema $StagingSchema -sqlcmd $SqlcmdBin -sqlcmdArgs $SqlCmdBaseArgs -server $SourceServer -database $SourceDatabase -user $SourceUser -password $SourcePassword
+}
+
+# 1.3 Populate Maps
+$MapFiles = @(
+    "etl-sql/map/generate_person_map.sql",
+    "etl-sql/map/generate_provider_map.sql",
+    "etl-sql/map/generate_visit_occurrence_map.sql",
+    "etl-sql/map/generate_drug_exposure_map.sql",
+    "etl-sql/map/generate_procedure_occurrence_map.sql",
+    "etl-sql/map/generate_device_exposure_map.sql",
+    "etl-sql/map/generate_observation_map.sql",
+    "etl-sql/map/generate_measurement_map.sql"
+)
+
+foreach ($f in $MapFiles) {
+    Invoke-SqlCmdFile (Join-Path $Root $f)
 }
 
 
