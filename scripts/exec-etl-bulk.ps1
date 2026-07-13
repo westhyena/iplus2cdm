@@ -99,6 +99,7 @@ function Invoke-SqlCmdQuery {
     
     $args += @("-Q", $query)
     & $SqlcmdBin @args
+    if ($LASTEXITCODE -ne 0) { throw "SQL 쿼리 실행 실패 (exit=$LASTEXITCODE)" }
 }
 
 function Invoke-SqlCmdFile {
@@ -118,6 +119,7 @@ function Invoke-SqlCmdFile {
     $args += @("-i", $path)
     Write-Host "[SQL] Executing $path"
     & $SqlcmdBin @args
+    if ($LASTEXITCODE -ne 0) { throw "SQL 파일 실행 실패 (exit=$LASTEXITCODE): $path" }
 }
 
 # Helper: Get Max ID from Target (Postgres)
