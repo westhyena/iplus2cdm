@@ -171,6 +171,7 @@ function Invoke-BcpOut {
     
     Write-Host "[BCP] Exporting ..."
     & $BcpBin @args
+    if ($LASTEXITCODE -ne 0) { throw "bcp 추출 실패 (exit=$LASTEXITCODE): $queryFile" }
 }
 
 # Helper: Run Psql Copy
@@ -200,7 +201,8 @@ function Invoke-PsqlCopy {
     $copyCmd = "\COPY $CdmSchema.$table $cols FROM '$file' WITH (FORMAT text, DELIMITER '|', ENCODING 'UTF8', NULL '');"
     
     Write-Host "[PSQL] Loading into $table ..."
-    & $PsqlBin @("-h", $TargetServer, "-p", $TargetPort, "-U", $TargetUser, "-d", $TargetDatabase, "-c", $copyCmd)
+    & $PsqlBin @("-h", $TargetServer, "-p", $TargetPort, "-U", $TargetUser, "-d", $TargetDatabase, "-v", "ON_ERROR_STOP=1", "-c", $copyCmd)
+    if ($LASTEXITCODE -ne 0) { throw "psql COPY 실패 (exit=$LASTEXITCODE): $table" }
 }
 
 # --- Main Execution ---
