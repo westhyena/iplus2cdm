@@ -94,7 +94,15 @@ function Hira-InvokeBcpImport([string]$server, [string]$database, [string]$user,
   }
   Write-Host ("[INFO] BCP: $BcpBin $dbtable in $filePath " + ($authLog -join ' ') + ' ' + ($opts -join ' '))
 
-  & $BcpBin $dbtable in $filePath @auth @opts
+  # bcp는 1,000행마다 진행 로그를 찍으므로 10,000행 단위만 통과시킴
+  & $BcpBin $dbtable in $filePath @auth @opts 2>&1 | ForEach-Object {
+    $line = "$_"
+    if ($line -match 'Total sent\s*:\s*(\d+)') {
+      if (([long]$matches[1]) % 10000 -eq 0) { Write-Host $line }
+    } else {
+      Write-Host $line
+    }
+  }
   if ($LASTEXITCODE -ne 0) { throw "bcp 실패 (exit=$LASTEXITCODE): $dbtable" }
 }
 
