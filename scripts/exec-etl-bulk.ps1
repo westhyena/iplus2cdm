@@ -171,7 +171,18 @@ function Invoke-BcpOut {
     
     Write-Host "[BCP] Exporting ..."
     & $BcpBin @args
-    if ($LASTEXITCODE -ne 0) { throw "bcp 추출 실패 (exit=$LASTEXITCODE): $queryFile" }
+    if ($LASTEXITCODE -ne 0) {
+        # bcp 에러는 줄 번호가 없으므로, 치환된 SQL을 저장하고 sqlcmd 컴파일 검사(NOEXEC)로 상세 에러를 출력
+        $debugSql = Join-Path ([IO.Path]::GetTempPath()) ("bcp_failed_" + [IO.Path]::GetFileName($queryFile))
+        Set-Content -LiteralPath $debugSql -Value ("SET NOEXEC ON;`nGO`n" + $sql) -Encoding utf8
+        Write-Host "[DEBUG] 치환된 SQL 저장: $debugSql (줄 번호는 +2 오프셋)" -ForegroundColor Yellow
+        Write-Host "[DEBUG] sqlcmd 컴파일 검사 결과:" -ForegroundColor Yellow
+        $diagArgs = @("-S", $SourceServer, "-d", $SourceDatabase, "-I", "-C")
+        if ($SourceUser) { $diagArgs += @("-U", $SourceUser, "-P", $SourcePassword) } else { $diagArgs += "-E" }
+        $diagArgs += @("-i", $debugSql)
+        & $SqlcmdBin @diagArgs 2>&1 | Select-Object -First 30 | ForEach-Object { Write-Host "  $_" }
+        throw "bcp 추출 실패 (exit=$LASTEXITCODE): $queryFile"
+    }
 }
 
 # Helper: Run Psql Copy
