@@ -159,8 +159,7 @@ SELECT
     m.visit_occurrence_id,
     NULL AS visit_detail_id,
     m.device_source_value,
-    -- 사이트 vocab에 없는 EDI 소스 concept이 있어 FK 위반 발생 → NULL (식별은 device_source_value로)
-    NULL AS device_source_concept_id,
+    m.source_concept_id AS device_source_concept_id,
     NULL AS unit_concept_id,
     NULL AS unit_source_value,
     NULL AS unit_source_concept_id
