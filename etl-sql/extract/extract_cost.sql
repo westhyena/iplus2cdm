@@ -4,13 +4,17 @@ SET NOCOUNT ON;
 DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from multiple sources. Default 0.
 
 -- 수납/청구 분리 (PAOSUNAB/PAISUNAB 헤더를 슬립 라인에 금액 비례 배분)
---   total_cost      = 슬립 [금액] (총 발생액, 기존 유지)
---   paid_by_payer   = w x 청구액(공단 청구분)
---   paid_by_patient = w x 실수납액(환자 실제 수납)
---   total_charge    = w x (청구액 + 수납할금액)
---   total_paid      = w x (청구액 + 실수납액)
---   w = 라인 금액 / 같은 수납 단위(외래: 환자+일자+일련번호, 입원: 입원건) 금액 합
---   → 미수 = total_charge - total_paid = w x (수납할금액 - 실수납액)
+-- 급여/비급여 분리 배분: 슬립 [보험분류]='01' 라인이 비급여 (SUNABDET 실측으로 검증됨)
+--   비급여 라인: total_charge = w x 비급여액, paid_by_payer = 0,
+--               paid_by_patient = total_paid = w x 비급여액 x 수납율
+--   급여 라인:   total_charge = w x (청구액 + 급여환자분), paid_by_payer = w x 청구액,
+--               total_paid = w x (청구액 + 급여환자분 x 수납율), paid_by_patient = NULL
+--   revenue_code_source_value = '비급여'/'급여'
+--   w = 라인 금액 / 같은 수납 단위 내 "같은 분류" 라인 금액 합
+--   급여환자분 = 수납할금액 - 비급여액, 수납율 = 실수납액 / 수납할금액
+--   합계 불변: Σcharge = 청구액+수납할금액, Σpaid = 청구액+실수납액,
+--             미수 = Σ(charge-paid) = 수납할금액-실수납액
+--   환자 수납 총액(급여 본인부담 포함)은 total_paid - paid_by_payer로 유도 가능
 ;WITH op_sunab AS (
   -- 외래수납내역 헤더 (환자+수납일자+일련번호 단위)
   SELECT
@@ -19,7 +23,8 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
     p.[일련번호],
     SUM(ISNULL(p.[청구액], 0))   AS payer_charge,
     SUM(ISNULL(p.[수납할금액], 0)) AS patient_charge,
-    SUM(ISNULL(p.[실수납액], 0))  AS patient_paid
+    SUM(ISNULL(p.[실수납액], 0))  AS patient_paid,
+    SUM(ISNULL(p.[비급여액], 0))  AS nonpay_charge
   FROM [$(SrcSchema)].[PAOSUNAB] p
   WHERE p.PTNTIDNO IS NOT NULL
   GROUP BY p.PTNTIDNO, p.[수납일자], p.[일련번호]
@@ -39,7 +44,8 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
     REPLACE(p.[입원일자], '-', '') AS adm_date,
     SUM(ISNULL(p.[청구액], 0))   AS payer_charge,
     SUM(ISNULL(p.[수납할금액], 0)) AS patient_charge,
-    SUM(ISNULL(p.[실수납액], 0))  AS patient_paid
+    SUM(ISNULL(p.[실수납액], 0))  AS patient_paid,
+    SUM(ISNULL(p.[비급여액], 0))  AS nonpay_charge
   FROM [$(SrcSchema)].[PAISUNAB] p
   WHERE p.PTNTIDNO IS NOT NULL
   GROUP BY p.PTNTIDNO, REPLACE(p.[입원일자], '-', '')
@@ -51,6 +57,7 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),''))   AS k_serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),''))   AS k_order_no,
     TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(CAST(o.[금액] AS nvarchar(100)))),'')) AS amount,
+    CASE WHEN LTRIM(RTRIM(o.[보험분류])) = '01' THEN 1 ELSE 0 END AS is_nonpay,
     o.[진료일자] AS svc_date_raw
   FROM [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
@@ -61,26 +68,27 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
     'IP'                  AS k_source,
     0                     AS k_serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),''))   AS k_order_no,
-    TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(CAST(i.[금액] AS nvarchar(100)))),'')) AS amount
+    TRY_CONVERT(float, NULLIF(LTRIM(RTRIM(CAST(i.[금액] AS nvarchar(100)))),'')) AS amount,
+    CASE WHEN LTRIM(RTRIM(i.[보험분류])) = '01' THEN 1 ELSE 0 END AS is_nonpay
   FROM [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
 ), op_alloc AS (
-  -- 외래: 같은 수납 단위(환자+일자+일련번호) 내 금액 비례 배분
+  -- 외래: 같은 수납 단위(환자+일자+일련번호) 내 "같은 급여/비급여 분류" 라인끼리 금액 비례 배분
   SELECT
-    l.k_ptntidno, l.k_date, l.k_source, l.k_serial_no, l.k_order_no, l.amount,
-    l.amount / NULLIF(SUM(l.amount) OVER (PARTITION BY l.k_ptntidno, l.k_date, l.k_serial_no), 0) AS w,
-    s.payer_charge, s.patient_charge, s.patient_paid
+    l.k_ptntidno, l.k_date, l.k_source, l.k_serial_no, l.k_order_no, l.amount, l.is_nonpay,
+    l.amount / NULLIF(SUM(l.amount) OVER (PARTITION BY l.k_ptntidno, l.k_date, l.k_serial_no, l.is_nonpay), 0) AS w,
+    s.payer_charge, s.patient_charge, s.patient_paid, s.nonpay_charge
   FROM op_lines l
   LEFT JOIN op_sunab s
     ON s.PTNTIDNO = l.k_ptntidno
    AND s.[수납일자] = l.svc_date_raw
    AND s.[일련번호] = l.k_serial_no
 ), ip_alloc AS (
-  -- 입원: 입원건 내 금액 비례 배분 (진료일자를 입원 구간으로 매핑)
+  -- 입원: 입원건 내 분류별 금액 비례 배분 (진료일자를 입원 구간으로 매핑)
   SELECT
-    l.k_ptntidno, l.k_date, l.k_source, l.k_serial_no, l.k_order_no, l.amount,
-    l.amount / NULLIF(SUM(l.amount) OVER (PARTITION BY l.k_ptntidno, st.INPTADDT), 0) AS w,
-    s.payer_charge, s.patient_charge, s.patient_paid
+    l.k_ptntidno, l.k_date, l.k_source, l.k_serial_no, l.k_order_no, l.amount, l.is_nonpay,
+    l.amount / NULLIF(SUM(l.amount) OVER (PARTITION BY l.k_ptntidno, st.INPTADDT, l.is_nonpay), 0) AS w,
+    s.payer_charge, s.patient_charge, s.patient_paid, s.nonpay_charge
   FROM ip_lines l
   OUTER APPLY (
     SELECT TOP 1 t.INPTADDT
@@ -95,14 +103,26 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
 ), slip_costs AS (
   SELECT
     a.k_ptntidno, a.k_date, a.k_source, a.k_serial_no, a.k_order_no, a.amount,
-    ROUND(a.w * (a.payer_charge + a.patient_charge), 0) AS total_charge,
-    ROUND(a.w * (a.payer_charge + a.patient_paid), 0)   AS total_paid,
-    ROUND(a.w * a.payer_charge, 0)                      AS paid_by_payer,
-    ROUND(a.w * a.patient_paid, 0)                      AS paid_by_patient
+    CASE WHEN a.is_nonpay = 1 THEN N'비급여' ELSE N'급여' END AS rev_label,
+    ROUND(CASE WHEN a.is_nonpay = 1
+               THEN a.w * a.nonpay_charge
+               ELSE a.w * (a.payer_charge + a.patient_charge - a.nonpay_charge) END, 0) AS total_charge,
+    ROUND(CASE WHEN a.is_nonpay = 1
+               THEN a.w * a.nonpay_charge * a.pay_ratio
+               ELSE a.w * (a.payer_charge + (a.patient_charge - a.nonpay_charge) * a.pay_ratio) END, 0) AS total_paid,
+    CASE WHEN a.is_nonpay = 1 THEN 0
+         ELSE ROUND(a.w * a.payer_charge, 0) END AS paid_by_payer,
+    CASE WHEN a.is_nonpay = 1 THEN ROUND(a.w * a.nonpay_charge * a.pay_ratio, 0)
+         ELSE NULL END AS paid_by_patient
   FROM (
-    SELECT * FROM op_alloc
-    UNION ALL
-    SELECT * FROM ip_alloc
+    SELECT u.*,
+           CASE WHEN ISNULL(u.patient_charge, 0) = 0 THEN 1
+                ELSE u.patient_paid / u.patient_charge END AS pay_ratio
+    FROM (
+      SELECT * FROM op_alloc
+      UNION ALL
+      SELECT * FROM ip_alloc
+    ) u
   ) a
 ), raw_data AS (
 -- 1. Procedure Costs
@@ -125,7 +145,7 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
     NULL AS payer_plan_period_id,
     NULL AS amount_allowed,
     NULL AS revenue_code_concept_id,
-    NULL AS revenue_code_source_value,
+    u.rev_label AS revenue_code_source_value,
     NULL AS drg_concept_id,
     NULL AS drg_source_value
   FROM slip_costs u
@@ -148,7 +168,7 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
     44818598 AS currency_concept_id,
     u.amount AS total_cost,
     u.total_charge, u.total_paid, u.paid_by_payer, u.paid_by_patient,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, u.rev_label, NULL, NULL
   FROM slip_costs u
   JOIN [$(StagingSchema)].drug_exposure_map km
     ON km.ptntidno = u.k_ptntidno
@@ -169,7 +189,7 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
     44818598 AS currency_concept_id,
     u.amount AS total_cost,
     u.total_charge, u.total_paid, u.paid_by_payer, u.paid_by_patient,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, u.rev_label, NULL, NULL
   FROM slip_costs u
   JOIN [$(StagingSchema)].device_exposure_map km
     ON km.ptntidno = u.k_ptntidno
@@ -190,7 +210,7 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
     44818598      AS currency_concept_id,
     u.amount      AS total_cost,
     u.total_charge, u.total_paid, u.paid_by_payer, u.paid_by_patient,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, u.rev_label, NULL, NULL
   FROM slip_costs u
   JOIN [$(StagingSchema)].observation_map km
     ON km.ptntidno = u.k_ptntidno
@@ -211,7 +231,7 @@ DECLARE @MinId INT = 0; -- Cost doesn't support MinId easily as it comes from mu
     44818598      AS currency_concept_id,
     u.amount      AS total_cost,
     u.total_charge, u.total_paid, u.paid_by_payer, u.paid_by_patient,
-    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, u.rev_label, NULL, NULL
   FROM slip_costs u
   JOIN [$(StagingSchema)].measurement_map km
     ON km.ptntidno = u.k_ptntidno

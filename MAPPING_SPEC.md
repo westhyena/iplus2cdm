@@ -219,7 +219,10 @@
 
 **소스 테이블:** `OCSSLIP`, `OCSSLIPI` (라인 금액), `PAOSUNAB`, `PAISUNAB` (수납/청구 헤더)
 **연결:** Procedure, Drug, Device, Observation, Measurement(청구코드 소스) 테이블의 ID와 연결
-**배분 방식:** 수납 헤더 금액을 같은 수납 단위(외래: 환자+수납일자+일련번호, 입원: 입원건)의 슬립 라인에 `금액` 비례로 배분 (가중치 w = 라인 금액 / 단위 내 금액 합). 미수 = `total_charge - total_paid` = w × (수납할금액 − 실수납액)
+**배분 방식:** 수납 헤더 금액을 같은 수납 단위(외래: 환자+수납일자+일련번호, 입원: 입원건)의 슬립 라인에 `금액` 비례로 배분하되, **급여/비급여를 분리 배분**한다. 슬립 `보험분류='01'` 라인이 비급여(SUNABDET 실측으로 검증). 가중치 w = 라인 금액 / 단위 내 같은 분류 라인 금액 합, 수납율 = 실수납액/수납할금액.
+- 비급여 라인: charge = w×`비급여액`, paid_by_payer = 0, paid_by_patient = total_paid = w×비급여액×수납율
+- 급여 라인: charge = w×(`청구액`+급여환자분), paid_by_payer = w×청구액, total_paid = w×(청구액+급여환자분×수납율), paid_by_patient = NULL (환자 수납 총액은 total_paid − paid_by_payer로 유도)
+- 합계 불변: Σcharge = 청구액+수납할금액, Σpaid = 청구액+실수납액, 미수 = Σ(charge−paid) = 수납할금액−실수납액
 
 | 컬럼명 | 컬럼 타입 | 필수 여부 | 소스 | 비고 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -229,13 +232,14 @@
 | cost_type_concept_id | Integer | Y | - | 32817 (EHR) |
 | currency_concept_id | Integer | Y | - | 44818598 (KRW) |
 | total_cost | Float | N | `금액` | 총 발생액 (공단분 포함) |
-| total_charge | Float | N | `청구액`+`수납할금액` | w 배분. 공단 청구 + 환자 청구 |
-| total_paid | Float | N | `청구액`+`실수납액` | w 배분. 공단 청구는 수납 간주 |
-| paid_by_payer | Float | N | `청구액` | w 배분. 공단 청구분 |
-| paid_by_patient | Float | N | `실수납액` | w 배분. 환자 실수납 |
+| total_charge | Float | N | `청구액`+`수납할금액`−`비급여액` / `비급여액` | 급여/비급여 분리 w 배분 |
+| total_paid | Float | N | 상동 × 수납율 | 공단 청구는 수납 간주 |
+| paid_by_payer | Float | N | `청구액` | w 배분. 공단 청구분 (비급여 라인 = 0) |
+| paid_by_patient | Float | N | `비급여액` × 수납율 | **비급여 수납액** (급여 라인 = NULL) — 대시보드 비급여 지표와 정합 |
 | payer_plan_period_id | Integer | N | - | NULL |
 | amount_allowed | Float | N | - | NULL |
 | revenue_code_concept_id | Integer | N | - | NULL |
+| revenue_code_source_value | String | N | `보험분류` | '비급여'(보험분류 01) / '급여' |
 | drg_concept_id | Integer | N | - | NULL |
 | drg_source_value | String | N | - | NULL |
 
