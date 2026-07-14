@@ -18,7 +18,7 @@ SET NOCOUNT ON;
     TRY_CONVERT(int, p.[보험분류]) IN (26,27)
     OR TRY_CONVERT(int, p.[수익분류]) IN (9,10)
   )
-  AND TRY_CONVERT(int, p.[수가분류]) <> 3
+  AND TRY_CONVERT(int, p.[수가분류]) NOT IN (3, 8) -- 3=약제(drug), 8=재료(device)
 ), src_keys AS (
   SELECT 
     o.PTNTIDNO AS ptntidno,

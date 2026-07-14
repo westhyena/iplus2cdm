@@ -191,7 +191,7 @@
 ## 8. DEVICE_EXPOSURE (의료기기 사용 정보)
 
 **소스 테이블:** `OCSSLIP`, `OCSSLIPI`
-**필터:** `hira_map`(Device) 또는 `PICMECHM`(보험/수익분류 9999)
+**필터:** `hira_map`(Device) 또는 `PICMECHM` **수가분류 = 8 (재료)** — IOL 렌즈(`BI02%`)·자가혈청 등. procedure 필터에서는 수가분류 3(약제)·8(재료)을 제외해 이중 적재 방지
 
 | 컬럼명 | 컬럼 타입 | 필수 여부 | 소스 | 비고 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -209,7 +209,7 @@
 | provider_id | Integer | N | `담당의` | `provider_id_map` 매핑 |
 | visit_occurrence_id | Integer | N | `visit_occurrence_map` | 방문 ID 매핑 |
 | visit_detail_id | Integer | N | - | NULL |
-| device_source_value | String | N | `청구코드` | |
+| device_source_value | String | N | `청구코드` + `명칭` | `'코드 - 명칭'` (50자 절단) — 렌즈 모델명 보존. `\|`는 bcp 구분자라 `/`로 치환 |
 | device_source_concept_id | Integer | N | `청구코드` | `hira_map` 소스 컨셉 ID |
 | unit_concept_id | Integer | N | - | NULL |
 | unit_source_value | String | N | - | NULL |

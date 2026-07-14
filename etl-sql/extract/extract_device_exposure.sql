@@ -24,16 +24,11 @@ DECLARE @MinId INT = $(MinId);
     AND m.INVALID_REASON IS NULL
     AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
 ), dev_code_meta AS (
+  -- 수가분류 8 = 재료 (IOL 렌즈 BI02%, 자가혈청 등) — 실사로 확정된 값
   SELECT DISTINCT
-    UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) AS code_norm,
-    TRY_CONVERT(int, p.[보험분류]) AS 보험분류,
-    TRY_CONVERT(int, p.[수익분류]) AS 수익분류
+    UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) AS code_norm
   FROM [$(SrcSchema)].[PICMECHM] p
-  WHERE (
-    TRY_CONVERT(int, p.[보험분류]) IN (9999)
-    OR TRY_CONVERT(int, p.[수익분류]) IN (9999)
-  )
-  AND TRY_CONVERT(int, p.[수가분류]) <> 3
+  WHERE TRY_CONVERT(int, p.[수가분류]) = 8
 ), op_raw AS (
   SELECT
     o.PTNTIDNO,
@@ -41,6 +36,7 @@ DECLARE @MinId INT = $(MinId);
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[일련번호])),'')) AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(o.[처방순서])),'')) AS order_no,
     o.[청구코드] AS claim_code,
+    o.[명칭] AS item_name,
     o.[담당의] AS doctor_src
   FROM [$(SrcSchema)].[OCSSLIP] o
   WHERE o.PTNTIDNO IS NOT NULL
@@ -52,6 +48,7 @@ DECLARE @MinId INT = $(MinId);
     0 AS serial_no,
     TRY_CONVERT(int, NULLIF(LTRIM(RTRIM(i.[처방순서])),'')) AS order_no,
     i.[청구코드] AS claim_code,
+    i.[명칭] AS item_name,
     i.[담당의] AS doctor_src
   FROM [$(SrcSchema)].[OCSSLIPI] i
   WHERE i.PTNTIDNO IS NOT NULL
@@ -93,7 +90,12 @@ DECLARE @MinId INT = $(MinId);
     NULL AS device_exposure_start_datetime,
     NULL AS device_exposure_end_date,
     NULL AS device_exposure_end_datetime,
-    NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS device_source_value,
+    -- 렌즈 모델명 보존: '청구코드 - 명칭' (bcp 구분자 '|'는 사용 금지 → '/'로 치환)
+    NULLIF(LEFT(REPLACE(CONCAT(
+      LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))),
+      ' - ',
+      LTRIM(RTRIM(CAST(r.item_name AS nvarchar(200))))
+    ), '|', '/'), 50), ' - ') AS device_source_value,
     UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
     NULLIF(LTRIM(RTRIM(CAST(r.doctor_src AS varchar(100)))), '') AS doctor_userid,
     'OP' AS src
@@ -113,7 +115,12 @@ DECLARE @MinId INT = $(MinId);
     NULL AS device_exposure_start_datetime,
     NULL AS device_exposure_end_date,
     NULL AS device_exposure_end_datetime,
-    NULLIF(LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))), '') AS device_source_value,
+    -- 렌즈 모델명 보존: '청구코드 - 명칭' (bcp 구분자 '|'는 사용 금지 → '/'로 치환)
+    NULLIF(LEFT(REPLACE(CONCAT(
+      LTRIM(RTRIM(CAST(r.claim_code AS varchar(50)))),
+      ' - ',
+      LTRIM(RTRIM(CAST(r.item_name AS nvarchar(200))))
+    ), '|', '/'), 50), ' - ') AS device_source_value,
     UPPER(LTRIM(RTRIM(CAST(r.claim_code AS varchar(200))))) AS normalized_code,
     NULLIF(LTRIM(RTRIM(CAST(r.doctor_src AS varchar(100)))), '') AS doctor_userid,
     'IP' AS src

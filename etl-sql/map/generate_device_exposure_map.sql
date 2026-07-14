@@ -9,14 +9,11 @@ SET NOCOUNT ON;
     AND m.INVALID_REASON IS NULL
     AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
 ), dev_code_meta_src AS (
+  -- 수가분류 8 = 재료 (IOL 렌즈 BI02%, 자가혈청 등) — 실사로 확정된 값
   SELECT DISTINCT
     UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) AS code_norm
   FROM [$(SrcSchema)].[PICMECHM] p
-  WHERE (
-    TRY_CONVERT(int, p.[보험분류]) IN (9999)
-    OR TRY_CONVERT(int, p.[수익분류]) IN (9999)
-  )
-  AND TRY_CONVERT(int, p.[수가분류]) <> 3
+  WHERE TRY_CONVERT(int, p.[수가분류]) = 8
 ), src_keys AS (
   SELECT 
     o.PTNTIDNO AS ptntidno,
