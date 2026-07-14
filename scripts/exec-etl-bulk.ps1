@@ -170,7 +170,15 @@ function Invoke-BcpOut {
     }
     
     Write-Host "[BCP] Exporting ..."
-    & $BcpBin @args
+    # bcp는 1,000행마다 진행 로그를 찍으므로 10,000행 단위만 통과시킴
+    & $BcpBin @args 2>&1 | ForEach-Object {
+        $line = "$_"
+        if ($line -match 'Total received\s*:\s*(\d+)') {
+            if (([long]$matches[1]) % 10000 -eq 0) { Write-Host $line }
+        } else {
+            Write-Host $line
+        }
+    }
     if ($LASTEXITCODE -ne 0) {
         # bcp 에러는 줄 번호가 없으므로, 치환된 SQL을 저장하고 sqlcmd 컴파일 검사(NOEXEC)로 상세 에러를 출력
         $debugSql = Join-Path ([IO.Path]::GetTempPath()) ("bcp_failed_" + [IO.Path]::GetFileName($queryFile))
