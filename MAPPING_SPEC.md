@@ -210,7 +210,7 @@
 | visit_occurrence_id | Integer | N | `visit_occurrence_map` | 방문 ID 매핑 |
 | visit_detail_id | Integer | N | - | NULL |
 | device_source_value | String | N | `청구코드` + `명칭` | `'코드 - 명칭'` (50자 절단) — 렌즈 모델명 보존. `\|`는 bcp 구분자라 `/`로 치환 |
-| device_source_concept_id | Integer | N | `청구코드` | `hira_map` 소스 컨셉 ID |
+| device_source_concept_id | Integer | N | - | NULL — 사이트 vocab에 없는 EDI concept의 FK 위반 회피 |
 | unit_concept_id | Integer | N | - | NULL |
 | unit_source_value | String | N | - | NULL |
 | unit_source_concept_id | Integer | N | - | NULL |
