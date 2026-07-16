@@ -24,11 +24,14 @@ DECLARE @MinId INT = $(MinId);
     AND m.INVALID_REASON IS NULL
     AND TRY_CONVERT(int, m.TARGET_CONCEPT_ID_1) IS NOT NULL
 ), dev_code_meta AS (
-  -- 수가분류 8 = 재료 (IOL 렌즈 BI02%, 자가혈청 등) — 실사로 확정된 값
+  -- 수가분류 8 = 재료 (IOL 렌즈 BI02%, 급여 렌즈 I12%, 플러그 등) — 실사로 확정된 값
+  -- 빈 청구코드는 제외: ''='' 조인으로 코드 없는 원내 라인(제증명·물품판매 등)이
+  -- 전부 device로 빨려 들어와 procedure와 이중 적재됨
   SELECT DISTINCT
     UPPER(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200))))) AS code_norm
   FROM [$(SrcSchema)].[PICMECHM] p
   WHERE TRY_CONVERT(int, p.[수가분류]) = 8
+    AND NULLIF(LTRIM(RTRIM(CAST(p.[청구코드] AS varchar(200)))), '') IS NOT NULL
 ), op_raw AS (
   SELECT
     o.PTNTIDNO,
