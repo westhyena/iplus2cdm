@@ -4,6 +4,7 @@ param(
   [string]$User,
   [string]$Password,
   [string]$SrcSchema,
+  [string]$StagingSchema,
   [string]$ConfigPath,
   [switch]$UseEnv,
   [switch]$PromptPassword,
@@ -26,6 +27,7 @@ $defaults = @{
   User       = ""
   Password   = ""
   SrcSchema  = "dbo"
+  StagingSchema = "stg_cdm"
   SqlcmdBin  = "sqlcmd"
   OutputDir  = (Join-Path (Get-RepoRoot) "vocab/extracted")
 }
@@ -58,6 +60,7 @@ if ($ConfigPath) {
     OMOP_USER     = "User"
     OMOP_PASSWORD = "Password"
     SRC_SCHEMA    = "SrcSchema"
+    STAGING_SCHEMA = "StagingSchema"
     SQLCMD_BIN    = "SqlcmdBin"
     VOCAB_EXTRACT_DIR = "OutputDir"
   }
@@ -74,6 +77,7 @@ if ($UseEnv) {
     User      = $env:OMOP_USER
     Password  = $env:OMOP_PASSWORD
     SrcSchema = $env:SRC_SCHEMA
+    StagingSchema = $env:STAGING_SCHEMA
     SqlcmdBin = $env:SQLCMD_BIN
     OutputDir = $env:VOCAB_EXTRACT_DIR
   }
@@ -97,7 +101,7 @@ $outDir = if ([IO.Path]::IsPathRooted($cfg.OutputDir)) { $cfg.OutputDir } else {
 $null = New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
 # Build sqlcmd common args
-$sqlcmdArgs = @('-S', $cfg.Server, '-d', $cfg.Database, '-b', '-V', '16', '-I', '-v', ("SrcSchema="+$cfg.SrcSchema))
+$sqlcmdArgs = @('-S', $cfg.Server, '-d', $cfg.Database, '-b', '-V', '16', '-I', '-v', ("SrcSchema="+$cfg.SrcSchema), ("StagingSchema="+$cfg.StagingSchema))
 if ($IsWindows) { $sqlcmdArgs += @('-f','65001') }
 if ($cfg.User) {
   if (-not $cfg.Password) { throw "Password is required when User is set (or use -PromptPassword)" }
