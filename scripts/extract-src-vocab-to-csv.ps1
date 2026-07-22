@@ -48,23 +48,38 @@ if ($ConfigPath) {
   $ext = [IO.Path]::GetExtension($ConfigPath).ToLowerInvariant()
   if ($ext -ne ".env") { throw "Unsupported config extension: $ext (use .env)" }
   $raw = Get-Content $ConfigPath
-  $kvMap = @{}
+  # 원본(추출 대상)은 MSSQL_* 을 우선 사용한다. OMOP_* 는 하위호환 폴백.
+  # 같은 키가 .env에 여러 번 나오면 "파일 뒤쪽 값"이 이기도록 파일 순서대로 덮어쓴다.
+  $map = @{
+    MSSQL_SERVER   = "Server"
+    MSSQL_DB       = "Database"
+    MSSQL_USER     = "User"
+    MSSQL_PASSWORD = "Password"
+    OMOP_SERVER    = "Server"
+    OMOP_DB        = "Database"
+    OMOP_USER      = "User"
+    OMOP_PASSWORD  = "Password"
+    SRC_SCHEMA     = "SrcSchema"
+    STAGING_SCHEMA = "StagingSchema"
+    SQLCMD_BIN     = "SqlcmdBin"
+    VOCAB_EXTRACT_DIR = "OutputDir"
+  }
+  # OMOP_* 가 MSSQL_* 를 덮어쓰지 않도록, MSSQL_* 로 채워진 대상 키는 OMOP_* 를 무시한다.
+  $filledByMssql = @{}
   foreach ($line in $raw) {
     if ($line -match '^(\s*#|\s*$)') { continue }
     $kv = $line -split '=',2
-    if ($kv.Count -eq 2) { $kvMap[$kv[0].Trim()] = $kv[1].Trim() }
+    if ($kv.Count -ne 2) { continue }
+    $key = $kv[0].Trim()
+    $val = $kv[1].Trim()
+    if (-not $map.ContainsKey($key)) { continue }
+    $target = $map[$key]
+    if ($key -like 'OMOP_*' -and $filledByMssql.ContainsKey($target)) { continue }
+    if ($val) {
+      $config[$target] = $val
+      if ($key -like 'MSSQL_*') { $filledByMssql[$target] = $true }
+    }
   }
-  $map = @{
-    OMOP_SERVER   = "Server"
-    OMOP_DB       = "Database"
-    OMOP_USER     = "User"
-    OMOP_PASSWORD = "Password"
-    SRC_SCHEMA    = "SrcSchema"
-    STAGING_SCHEMA = "StagingSchema"
-    SQLCMD_BIN    = "SqlcmdBin"
-    VOCAB_EXTRACT_DIR = "OutputDir"
-  }
-  foreach ($k in $kvMap.Keys) { if ($map.ContainsKey($k)) { $config[$map[$k]] = $kvMap[$k] } }
 }
 
 # Merge
@@ -72,10 +87,10 @@ $cfg = $defaults.Clone()
 foreach ($k in $config.Keys) { if ($config[$k]) { $cfg[$k] = $config[$k] } }
 if ($UseEnv) {
   $envMap = @{
-    Server    = $env:OMOP_SERVER
-    Database  = $env:OMOP_DB
-    User      = $env:OMOP_USER
-    Password  = $env:OMOP_PASSWORD
+    Server    = if ($env:MSSQL_SERVER) { $env:MSSQL_SERVER } else { $env:OMOP_SERVER }
+    Database  = if ($env:MSSQL_DB) { $env:MSSQL_DB } else { $env:OMOP_DB }
+    User      = if ($env:MSSQL_USER) { $env:MSSQL_USER } else { $env:OMOP_USER }
+    Password  = if ($env:MSSQL_PASSWORD) { $env:MSSQL_PASSWORD } else { $env:OMOP_PASSWORD }
     SrcSchema = $env:SRC_SCHEMA
     StagingSchema = $env:STAGING_SCHEMA
     SqlcmdBin = $env:SQLCMD_BIN
@@ -101,7 +116,8 @@ $outDir = if ([IO.Path]::IsPathRooted($cfg.OutputDir)) { $cfg.OutputDir } else {
 $null = New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
 # Build sqlcmd common args
-$sqlcmdArgs = @('-S', $cfg.Server, '-d', $cfg.Database, '-b', '-V', '16', '-I', '-v', ("SrcSchema="+$cfg.SrcSchema), ("StagingSchema="+$cfg.StagingSchema))
+# -C: ODBC Driver 18은 기본 암호화 → 서버 인증서 신뢰 (벌크 파이프라인과 동일)
+$sqlcmdArgs = @('-S', $cfg.Server, '-d', $cfg.Database, '-b', '-V', '16', '-I', '-C', '-v', ("SrcSchema="+$cfg.SrcSchema), ("StagingSchema="+$cfg.StagingSchema))
 if ($IsWindows) { $sqlcmdArgs += @('-f','65001') }
 if ($cfg.User) {
   if (-not $cfg.Password) { throw "Password is required when User is set (or use -PromptPassword)" }
@@ -158,7 +174,14 @@ foreach ($sqlPath in $filesToRun) {
     $args += @('-o', $outPath)
 
     & $cfg.SqlcmdBin @args
-    if ($LASTEXITCODE -ne 0) { throw "실행 실패: $fileName (exit=$LASTEXITCODE)" }
+    if ($LASTEXITCODE -ne 0) {
+      # sqlcmd는 에러도 -o 파일에 쓰므로, 실패 시 그 앞부분을 콘솔에 노출
+      if (Test-Path $outPath) {
+        Write-Host "[ERROR] sqlcmd 출력(에러 메시지):" -ForegroundColor Red
+        Get-Content -LiteralPath $outPath -TotalCount 20 | ForEach-Object { Write-Host "  $_" }
+      }
+      throw "실행 실패: $fileName (exit=$LASTEXITCODE)"
+    }
     Write-Host "[OK] Wrote: $outPath"
   }
   finally {
