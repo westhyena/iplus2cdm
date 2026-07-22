@@ -1,6 +1,6 @@
 -- 미매핑 약 코드 (drug concept 매핑 요청용)
 -- 대상: 슬립에서 수가분류 3(약)으로 사용된 청구코드 중
---   drug_vocabulary_map(의료진 매핑)과 hira_map(Drug) 어디에도 유효 매핑이 없는 코드
+--   hira_map(Drug)에 유효 매핑이 없는 코드 (의료진 별도 매핑은 미사용)
 ;WITH slip AS (
   SELECT
     UPPER(LTRIM(RTRIM(CAST(o.[청구코드] AS varchar(50))))) AS code_,
@@ -49,11 +49,6 @@ SELECT
 FROM used u
 LEFT JOIN meta m ON m.code_ = u.code_
 WHERE NOT EXISTS (
-    SELECT 1 FROM [$(StagingSchema)].drug_vocabulary_map dv
-    WHERE UPPER(LTRIM(RTRIM(CAST(dv.source_code AS varchar(50))))) = u.code_ COLLATE DATABASE_DEFAULT
-      AND dv.target_concept_id IS NOT NULL
-  )
-  AND NOT EXISTS (
     SELECT 1 FROM [$(StagingSchema)].hira_map h
     WHERE UPPER(LTRIM(RTRIM(CAST(h.LOCAL_CD1 AS varchar(50))))) = u.code_ COLLATE DATABASE_DEFAULT
       AND h.TARGET_DOMAIN_ID = 'Drug'

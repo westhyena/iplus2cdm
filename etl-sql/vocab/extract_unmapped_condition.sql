@@ -1,6 +1,6 @@
 -- 미매핑 상병 코드 (condition concept 매핑 요청용)
 -- 대상: 진단 테이블(OCSDISE/OCSDISEI)에서 사용된 상병코드 중
---   condition_vocabulary_map(의료진 매핑)에 유효 매핑이 없는 코드
+--   hira_map(Condition)에 유효 매핑이 없는 코드 (의료진 별도 매핑은 미사용)
 ;WITH dise AS (
   SELECT
     UPPER(LTRIM(RTRIM(CAST(o.[상병코드] AS varchar(50))))) AS code_,
@@ -25,9 +25,11 @@ SELECT
 FROM dise d
 WHERE NULLIF(d.code_, '') IS NOT NULL
   AND NOT EXISTS (
-    SELECT 1 FROM [$(StagingSchema)].condition_vocabulary_map cv
-    WHERE UPPER(LTRIM(RTRIM(CAST(cv.source_code AS varchar(50))))) = d.code_ COLLATE DATABASE_DEFAULT
-      AND cv.target_concept_id IS NOT NULL
+    SELECT 1 FROM [$(StagingSchema)].hira_map h
+    WHERE UPPER(LTRIM(RTRIM(CAST(h.LOCAL_CD1 AS varchar(50))))) = d.code_ COLLATE DATABASE_DEFAULT
+      AND h.TARGET_DOMAIN_ID = 'Condition'
+      AND h.INVALID_REASON IS NULL
+      AND TRY_CONVERT(int, h.TARGET_CONCEPT_ID_1) IS NOT NULL
   )
 GROUP BY d.code_
 ORDER BY COUNT(*) DESC;
